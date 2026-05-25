@@ -1,0 +1,13 @@
+[workspace]
+resolver = "3"
+
+[workspace.package]
+authors = ["Shiva Kiran Koninty <shiva@skran.xyz>"]
+description = "Utility programs of the Compact Disc (CD) Input and Control Core Library"
+edition = "2024"
+license = "GPL-3.0-or-later"
+readme = "README.md"
+repository = "https://github.com/libcdio/cdio-utils-rs"
+
+[workspace.dependencies]
+libcdio-sys = { version = "2.0.0", default-features = false }
