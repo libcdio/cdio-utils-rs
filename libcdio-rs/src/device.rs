@@ -4,7 +4,7 @@
 //! As such, you may refer to its documentation.
 
 use std::{
-    ffi::CString,
+    ffi::{CStr, CString},
     path::Path,
     ptr::{self, NonNull},
 };
@@ -81,6 +81,28 @@ impl Cdio {
             cdio: NonNull::new(cdio)?,
         })
     }
+
+    /// Return the default CD device.
+    /// Returns `None` if the default device could not be fetched.
+    pub fn default_device(&self) -> Option<String> {
+        let default_device_p = unsafe { libcdio_sys::cdio_get_default_device(self.cdio.as_ptr()) };
+
+        if default_device_p.is_null() {
+            return None;
+        }
+
+        // SAFETY: Null check has been handled above
+        let default_device = unsafe { CStr::from_ptr(default_device_p) };
+        let default_device = default_device.to_string_lossy().to_string();
+
+        // SAFETY: default_device_p has been duplicated into a Rust String
+        // and is not needed anymore
+        unsafe {
+            libcdio_sys::cdio_free(default_device_p.cast());
+        }
+
+        Some(default_device)
+    }
 }
 
 impl Drop for Cdio {
@@ -100,5 +122,12 @@ mod tests {
             Driver::Unknown,
         )
         .unwrap();
+    }
+
+    #[test]
+    #[ignore = "requires a cd/dvd drive"]
+    fn default_device_test() {
+        let cdio = Cdio::open(None, Driver::Device).unwrap();
+        assert!(cdio.default_device().is_some());
     }
 }
