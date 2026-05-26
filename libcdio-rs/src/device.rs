@@ -118,6 +118,21 @@ impl Drop for Cdio {
     }
 }
 
+impl Driver {
+    /// Returns a description of the driver.
+    pub fn description(self) -> &'static str {
+        let description = unsafe { libcdio_sys::cdio_driver_describe(driver_id_t::from(self)) };
+
+        // SAFETY: driver_description is a static string, therefore valid
+        // and not null
+        let description: &'static CStr = unsafe { CStr::from_ptr(description) };
+
+        description
+            .to_str()
+            .expect("driver descriptions should be valid as they are hardcoded")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -142,5 +157,14 @@ mod tests {
     fn driver() {
         let cdio = Cdio::open(Some(test_cue_file()), Driver::Unknown).unwrap();
         assert_eq!(cdio.driver(), Driver::BinCue);
+    }
+
+    #[test]
+    fn driver_description() {
+        assert_eq!(
+            Driver::Linux.description(),
+            "GNU/Linux ioctl and MMC driver"
+        );
+        assert_eq!(Driver::OsX.description(), "Apple macOS driver");
     }
 }
