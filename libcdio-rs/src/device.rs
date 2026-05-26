@@ -7,6 +7,7 @@ use std::{
     ffi::{CStr, CString},
     path::Path,
     ptr::{self, NonNull},
+    sync::Mutex,
 };
 
 use libcdio_sys::{
@@ -18,6 +19,14 @@ use libcdio_sys::{
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::cdio::Cdio;
+
+/// MAINTAINER NOTE:
+/// A lock guarding a private static named `CdIo_last_driver`.
+/// It must be held before invoking any libcdio methods
+/// that lead to the mutation this value.
+/// As of libcdio v2.3.0, the methods that directly mutate
+/// this value are `cdio_init()` and `cdio_destroy()`.
+static CDIO_LAST_DRIVER_LOCK: Mutex<()> = Mutex::new(());
 
 /// Represents a cdio driver.
 #[repr(u32)]
@@ -72,8 +81,10 @@ impl Cdio {
     pub fn open(source: Option<&Path>, driver: Driver) -> Option<Self> {
         let cdio = if let Some(source) = source {
             let source = CString::new(source.to_str()?).ok()?;
+            let _lock = CDIO_LAST_DRIVER_LOCK.lock().unwrap();
             unsafe { libcdio_sys::cdio_open(source.as_ptr(), driver_id_t::from(driver)) }
         } else {
+            let _lock = CDIO_LAST_DRIVER_LOCK.lock().unwrap();
             unsafe { libcdio_sys::cdio_open(ptr::null(), driver as driver_id_t) }
         };
 
@@ -114,6 +125,7 @@ impl Cdio {
 
 impl Drop for Cdio {
     fn drop(&mut self) {
+        let _lock = CDIO_LAST_DRIVER_LOCK.lock().unwrap();
         unsafe { libcdio_sys::cdio_destroy(self.cdio.as_ptr()) }
     }
 }
