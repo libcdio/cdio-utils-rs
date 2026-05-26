@@ -12,3 +12,4 @@ repository.workspace = true
 
 [dependencies]
 libcdio-sys.workspace = true
+num_enum = "0.7.6"
