@@ -15,14 +15,14 @@ use libcdio_sys::{
     driver_id_t_DRIVER_NETBSD, driver_id_t_DRIVER_NRG, driver_id_t_DRIVER_OSX,
     driver_id_t_DRIVER_SOLARIS, driver_id_t_DRIVER_UNKNOWN, driver_id_t_DRIVER_WIN32,
 };
-use num_enum::IntoPrimitive;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::cdio::Cdio;
 
 /// Represents a cdio driver.
 #[repr(u32)]
 #[non_exhaustive]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, IntoPrimitive)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
 pub enum Driver {
     /// Used as input when we don't care what kind of driver to use.
     Unknown = driver_id_t_DRIVER_UNKNOWN,
@@ -103,6 +103,13 @@ impl Cdio {
 
         Some(default_device)
     }
+
+    /// Returns the currently used driver.
+    pub fn driver(&self) -> Driver {
+        let driver_id = unsafe { libcdio_sys::cdio_get_driver_id(self.cdio.as_ptr()) };
+
+        Driver::try_from(driver_id).expect("cdio->driver_id should be initialized and valid")
+    }
 }
 
 impl Drop for Cdio {
@@ -115,13 +122,13 @@ impl Drop for Cdio {
 mod tests {
     use super::*;
 
+    fn test_cue_file() -> &'static Path {
+        Path::new("../test-data/isofs-m1.cue")
+    }
+
     #[test]
     fn cdio_open() {
-        Cdio::open(
-            Some(Path::new("../test-data/isofs-m1.cue")),
-            Driver::Unknown,
-        )
-        .unwrap();
+        Cdio::open(Some(test_cue_file()), Driver::Unknown).unwrap();
     }
 
     #[test]
@@ -129,5 +136,11 @@ mod tests {
     fn default_device_test() {
         let cdio = Cdio::open(None, Driver::Device).unwrap();
         assert!(cdio.default_device().is_some());
+    }
+
+    #[test]
+    fn driver() {
+        let cdio = Cdio::open(Some(test_cue_file()), Driver::Unknown).unwrap();
+        assert_eq!(cdio.driver(), Driver::BinCue);
     }
 }
