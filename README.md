@@ -1,6 +1,8 @@
 # cdio-utils-rs: Utility programs of the Compact Disc (CD) Input and Control Core Library
 
 This is a WIP Rust port of the CLI utilities provided by libcdio.
+Also includes [libcdio-rs](./libcdio-rs), which provides safe Rust abstractions
+over libcdio.
 
 ## Status
  * [ ] cd-drive:      show CD-ROM drive characteristics
