@@ -121,6 +121,37 @@ impl Cdio {
 
         Driver::try_from(driver_id).expect("cdio->driver_id should be initialized and valid")
     }
+
+    /// Returns a list of connected devices, per the driver in use.
+    /// # Returns
+    /// `None` is returned if the device list could not be fetched.
+    pub fn devices(&self) -> Option<Vec<String>> {
+        let devices_pp = unsafe { libcdio_sys::cdio_get_devices(driver_id_t::from(self.driver())) };
+        if devices_pp.is_null() {
+            return None;
+        }
+
+        let mut devices = Vec::new();
+        let mut devices_pp1 = devices_pp;
+        // SAFETY: The device list is NULL terminated, therefore safe to
+        // dereference till NULL is reached
+        while let device = unsafe { *devices_pp1 }
+            && !device.is_null()
+        {
+            // SAFETY: device is not null and should be a valid string
+            let device = unsafe { CStr::from_ptr(device) };
+            devices.push(device.to_string_lossy().to_string());
+            devices_pp1 = unsafe { devices_pp1.offset(1) };
+        }
+
+        // SAFETY: Device list is no has been duplicated above and is
+        // not needed anymore
+        unsafe {
+            libcdio_sys::cdio_free_device_list(devices_pp);
+        }
+
+        Some(devices)
+    }
 }
 
 impl Drop for Cdio {
@@ -204,5 +235,12 @@ mod tests {
             "GNU/Linux ioctl and MMC driver"
         );
         assert_eq!(Driver::OsX.description(), "Apple macOS driver");
+    }
+
+    #[test]
+    #[ignore = "requires a cd/dvd drive"]
+    fn devices() {
+        let cdio = Cdio::open(None, Driver::Unknown).unwrap();
+        assert!(!cdio.devices().unwrap().is_empty());
     }
 }
