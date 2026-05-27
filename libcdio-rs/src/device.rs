@@ -162,6 +162,11 @@ impl Drop for Cdio {
 }
 
 impl Driver {
+    /// Checks driver availability.
+    pub fn available(self) -> bool {
+        unsafe { libcdio_sys::cdio_have_driver(driver_id_t::from(self)) }
+    }
+
     /// Returns the driver name.
     pub fn name(self) -> &'static str {
         let driver_name =
@@ -242,5 +247,14 @@ mod tests {
     fn devices() {
         let cdio = Cdio::open(None, Driver::Unknown).unwrap();
         assert!(!cdio.devices().unwrap().is_empty());
+    }
+
+    #[test]
+    fn driver_available() {
+        assert!(Driver::BinCue.available());
+        assert!(
+            !Driver::Aix.available(),
+            "I didn't imagine someone'd run tests on AIX.."
+        );
     }
 }
