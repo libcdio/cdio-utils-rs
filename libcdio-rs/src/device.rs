@@ -159,6 +159,12 @@ impl Driver {
     }
 }
 
+impl std::fmt::Display for Driver {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.description())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
