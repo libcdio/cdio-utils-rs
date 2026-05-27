@@ -131,6 +131,20 @@ impl Drop for Cdio {
 }
 
 impl Driver {
+    /// Returns the driver name.
+    pub fn name(self) -> &'static str {
+        let driver_name =
+            unsafe { libcdio_sys::cdio_get_driver_name_from_id(driver_id_t::from(self)) };
+
+        // SAFETY: driver_name is a static string, therefore valid
+        // and not null
+        let driver_name: &'static CStr = unsafe { CStr::from_ptr(driver_name) };
+
+        driver_name
+            .to_str()
+            .expect("driver names should be valid as they are hardcoded")
+    }
+
     /// Returns a description of the driver.
     pub fn description(self) -> &'static str {
         let description = unsafe { libcdio_sys::cdio_driver_describe(driver_id_t::from(self)) };
@@ -169,6 +183,12 @@ mod tests {
     fn driver() {
         let cdio = Cdio::open(Some(test_cue_file()), Driver::Unknown).unwrap();
         assert_eq!(cdio.driver(), Driver::BinCue);
+    }
+
+    #[test]
+    fn driver_name() {
+        assert_eq!(Driver::Linux.name(), "GNU/Linux");
+        assert_eq!(Driver::OsX.name(), "macOS");
     }
 
     #[test]
