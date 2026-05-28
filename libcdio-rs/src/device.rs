@@ -5,16 +5,18 @@
 
 use std::{
     ffi::{CStr, CString},
+    mem::MaybeUninit,
     path::Path,
     ptr::{self, NonNull},
     sync::Mutex,
 };
 
 use libcdio_sys::{
-    driver_id_t, driver_id_t_DRIVER_AIX, driver_id_t_DRIVER_BINCUE, driver_id_t_DRIVER_CDRDAO,
-    driver_id_t_DRIVER_DEVICE, driver_id_t_DRIVER_FREEBSD, driver_id_t_DRIVER_LINUX,
-    driver_id_t_DRIVER_NETBSD, driver_id_t_DRIVER_NRG, driver_id_t_DRIVER_OSX,
-    driver_id_t_DRIVER_SOLARIS, driver_id_t_DRIVER_UNKNOWN, driver_id_t_DRIVER_WIN32,
+    cdio_hwinfo_t, driver_id_t, driver_id_t_DRIVER_AIX, driver_id_t_DRIVER_BINCUE,
+    driver_id_t_DRIVER_CDRDAO, driver_id_t_DRIVER_DEVICE, driver_id_t_DRIVER_FREEBSD,
+    driver_id_t_DRIVER_LINUX, driver_id_t_DRIVER_NETBSD, driver_id_t_DRIVER_NRG,
+    driver_id_t_DRIVER_OSX, driver_id_t_DRIVER_SOLARIS, driver_id_t_DRIVER_UNKNOWN,
+    driver_id_t_DRIVER_WIN32,
 };
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
@@ -70,6 +72,14 @@ pub enum Driver {
 
     /// A composite of the above drivers; should be used last.
     Device = driver_id_t_DRIVER_DEVICE,
+}
+
+/// Hardware information returned by a cdio driver.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HardwareInfo {
+    pub model: String,
+    pub vendor: String,
+    pub revision: String,
 }
 
 impl Cdio {
@@ -151,6 +161,31 @@ impl Cdio {
         }
 
         Some(devices)
+    }
+
+    /// Returns hardware information.
+    pub fn hardware_info(&self) -> Option<HardwareInfo> {
+        let mut hwinfo: MaybeUninit<cdio_hwinfo_t> = MaybeUninit::uninit();
+        let ret = unsafe { libcdio_sys::cdio_get_hwinfo(self.cdio.as_ptr(), hwinfo.as_mut_ptr()) };
+        if !ret {
+            return None;
+        }
+
+        // SAFETY: cdio_get_hwinfo() returned true, therefore hwinfo should be initialized
+        let hwinfo = unsafe { hwinfo.assume_init() };
+
+        // SAFETY: The strings are null terminated
+        unsafe {
+            let model = CStr::from_ptr(hwinfo.psz_model.as_ptr());
+            let vendor = CStr::from_ptr(hwinfo.psz_vendor.as_ptr());
+            let revision = CStr::from_ptr(hwinfo.psz_revision.as_ptr());
+
+            Some(HardwareInfo {
+                model: model.to_string_lossy().trim_end().to_string(),
+                vendor: vendor.to_string_lossy().trim_end().to_string(),
+                revision: revision.to_string_lossy().trim_end().to_string(),
+            })
+        }
     }
 }
 
@@ -256,5 +291,15 @@ mod tests {
             !Driver::Aix.available(),
             "I didn't imagine someone'd run tests on AIX.."
         );
+    }
+
+    #[test]
+    #[ignore = "requires a cd/dvd drive"]
+    fn hardware_info() {
+        let cdio = Cdio::open(None, Driver::Device).unwrap();
+        dbg!(cdio.hardware_info());
+        assert!(cdio.hardware_info().is_some());
+        let cdio = Cdio::open(Some(test_cue_file()), Driver::Unknown).unwrap();
+        dbg!(cdio.hardware_info());
     }
 }
