@@ -13,3 +13,7 @@ repository.workspace = true
 [dependencies]
 libcdio-sys.workspace = true
 num_enum = "0.7.6"
+tracing.workspace = true
+
+[dev-dependencies]
+test-log.workspace = true
