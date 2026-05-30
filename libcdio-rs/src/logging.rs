@@ -1,11 +1,3 @@
-//! libcdio logging routines.
-//!
-//! The tracing crate is used to emit logs. The "log" feature of tracing is
-//! enabled, therefore it should also emit logs in the "log" format if
-//! a tracing subscriber is not used.
-//!
-//! Make sure to call [`init_logger()`].
-
 use std::{
     ffi::{CStr, c_char},
     sync::Once,
@@ -19,7 +11,7 @@ use libcdio_sys::{
 
 /// Configures libcdio to emit tracing (or "log" crate) logs.
 /// This should be called before using any other methods.
-pub fn init_logger() {
+pub(crate) fn init_logger() {
     LOG_HANDLER.call_once(|| unsafe {
         libcdio_sys::cdio_log_set_handler(Some(log_handler));
 

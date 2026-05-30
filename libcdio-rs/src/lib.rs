@@ -1,4 +1,4 @@
 pub mod cdio;
 pub mod device;
-pub mod logging;
+mod logging;
 pub mod mmc;

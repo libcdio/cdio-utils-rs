@@ -9,7 +9,7 @@ use std::{
 
 use libcdio_sys::{CdIo_t, driver_id_t};
 
-use crate::device::Driver;
+use crate::{device::Driver, logging};
 
 /// The Cdio type.
 pub struct Cdio {
@@ -40,6 +40,8 @@ impl Cdio {
     }
 
     fn open(source: Option<&CStr>, driver: Option<Driver>) -> Option<Self> {
+        logging::init_logger();
+
         let driver = driver.unwrap_or(Driver::Unknown);
         let source = source.map(|src| src.as_ptr()).unwrap_or(ptr::null());
         let _lock = CDIO_LAST_DRIVER_LOCK.lock().unwrap();
