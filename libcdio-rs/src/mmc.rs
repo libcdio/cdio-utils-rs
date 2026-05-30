@@ -50,14 +50,12 @@ impl Cdio {
 
 #[cfg(test)]
 mod tests {
-    use crate::device::Driver;
-
     use super::*;
 
     #[test]
     #[ignore = "requires a cd/dvd drive"]
     fn mmc_level() {
-        let cdio = Cdio::open(None, Driver::Device).unwrap();
+        let cdio = Cdio::new().unwrap();
         assert!(cdio.mmc_level().is_some());
     }
 }

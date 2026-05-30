@@ -3,13 +3,7 @@
 //! Most methods are implemented on [`Cdio`].
 //! As such, you may refer to its documentation.
 
-use std::{
-    ffi::{CStr, CString},
-    mem::MaybeUninit,
-    path::Path,
-    ptr::{self, NonNull},
-    sync::Mutex,
-};
+use std::{ffi::CStr, mem::MaybeUninit};
 
 use libcdio_sys::{
     cdio_hwinfo_t, driver_id_t, driver_id_t_DRIVER_AIX, driver_id_t_DRIVER_BINCUE,
@@ -21,14 +15,6 @@ use libcdio_sys::{
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::cdio::Cdio;
-
-/// MAINTAINER NOTE:
-/// A lock guarding a private static named `CdIo_last_driver`.
-/// It must be held before invoking any libcdio methods
-/// that lead to the mutation this value.
-/// As of libcdio v2.3.0, the methods that directly mutate
-/// this value are `cdio_init()` and `cdio_destroy()`.
-static CDIO_LAST_DRIVER_LOCK: Mutex<()> = Mutex::new(());
 
 /// Represents a cdio driver.
 #[repr(u32)]
@@ -83,26 +69,6 @@ pub struct HardwareInfo {
 }
 
 impl Cdio {
-    /// Sets up to read from place specified by `source` and `driver`.
-    /// If source is `None`, uses the the default driver.
-    /// # Returns
-    /// - The cdio object on success.
-    /// - `None` on error or no device, or if `source` is invalid.
-    pub fn open(source: Option<&Path>, driver: Driver) -> Option<Self> {
-        let cdio = if let Some(source) = source {
-            let source = CString::new(source.to_str()?).ok()?;
-            let _lock = CDIO_LAST_DRIVER_LOCK.lock().unwrap();
-            unsafe { libcdio_sys::cdio_open(source.as_ptr(), driver_id_t::from(driver)) }
-        } else {
-            let _lock = CDIO_LAST_DRIVER_LOCK.lock().unwrap();
-            unsafe { libcdio_sys::cdio_open(ptr::null(), driver as driver_id_t) }
-        };
-
-        Some(Self {
-            cdio: NonNull::new(cdio)?,
-        })
-    }
-
     /// Return the default CD device.
     /// Returns `None` if the default device could not be fetched.
     pub fn default_device(&self) -> Option<String> {
@@ -189,13 +155,6 @@ impl Cdio {
     }
 }
 
-impl Drop for Cdio {
-    fn drop(&mut self) {
-        let _lock = CDIO_LAST_DRIVER_LOCK.lock().unwrap();
-        unsafe { libcdio_sys::cdio_destroy(self.cdio.as_ptr()) }
-    }
-}
-
 impl Driver {
     /// Checks driver availability.
     pub fn available(self) -> bool {
@@ -238,6 +197,8 @@ impl std::fmt::Display for Driver {
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+
     use super::*;
 
     fn test_cue_file() -> &'static Path {
@@ -245,20 +206,15 @@ mod tests {
     }
 
     #[test]
-    fn cdio_open() {
-        Cdio::open(Some(test_cue_file()), Driver::Unknown).unwrap();
-    }
-
-    #[test]
     #[ignore = "requires a cd/dvd drive"]
     fn default_device_test() {
-        let cdio = Cdio::open(None, Driver::Device).unwrap();
+        let cdio = Cdio::new().unwrap();
         assert!(cdio.default_device().is_some());
     }
 
     #[test]
     fn driver() {
-        let cdio = Cdio::open(Some(test_cue_file()), Driver::Unknown).unwrap();
+        let cdio = Cdio::builder().source(test_cue_file()).build().unwrap();
         assert_eq!(cdio.driver(), Driver::BinCue);
     }
 
@@ -280,7 +236,7 @@ mod tests {
     #[test]
     #[ignore = "requires a cd/dvd drive"]
     fn devices() {
-        let cdio = Cdio::open(None, Driver::Unknown).unwrap();
+        let cdio = Cdio::new().unwrap();
         assert!(!cdio.devices().unwrap().is_empty());
     }
 
@@ -296,10 +252,9 @@ mod tests {
     #[test]
     #[ignore = "requires a cd/dvd drive"]
     fn hardware_info() {
-        let cdio = Cdio::open(None, Driver::Device).unwrap();
-        dbg!(cdio.hardware_info());
+        let cdio = Cdio::new().unwrap();
         assert!(cdio.hardware_info().is_some());
-        let cdio = Cdio::open(Some(test_cue_file()), Driver::Unknown).unwrap();
-        dbg!(cdio.hardware_info());
+        let cdio = Cdio::builder().source(test_cue_file()).build().unwrap();
+        assert!(cdio.hardware_info().is_some());
     }
 }
