@@ -10,6 +10,9 @@ license.workspace = true
 readme = "README.md"
 repository.workspace = true
 
+[features]
+iso9660 = ["libcdio-sys/iso9660"]
+
 [dependencies]
 libcdio-sys.workspace = true
 num_enum = "0.7.6"

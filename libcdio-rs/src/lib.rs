@@ -17,5 +17,7 @@
 
 pub mod cdio;
 pub mod device;
+#[cfg(feature = "iso9660")]
+pub mod iso9660;
 mod logging;
 pub mod mmc;
