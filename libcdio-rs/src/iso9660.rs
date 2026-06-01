@@ -39,6 +39,13 @@ pub struct Iso9660 {
     pub(crate) ptr: NonNull<libcdio_sys::iso9660_t>,
 }
 
+/// A builder for [Iso9660].
+#[derive(Clone, Debug)]
+pub struct Iso9660Builder<'a> {
+    extensions: Iso9660Extensions,
+    path: &'a Path,
+}
+
 bitflags! {
     /// ISO 9660 Extensions.
     /// # Examples
@@ -70,6 +77,11 @@ impl Iso9660 {
         Self::open(&path, Iso9660Extensions::all())
     }
 
+    /// Returns a builder object. See [`Iso9660Builder`].
+    pub fn builder<'a>(path: &'a Path) -> Iso9660Builder<'a> {
+        Iso9660Builder::new(path)
+    }
+
     fn open(path: &CStr, extensions: Iso9660Extensions) -> Option<Self> {
         init_logger();
 
@@ -83,6 +95,29 @@ impl Iso9660 {
     }
 }
 
+impl<'a> Iso9660Builder<'a> {
+    pub fn new(path: &'a Path) -> Self {
+        Self {
+            path,
+            extensions: Iso9660Extensions::empty(),
+        }
+    }
+
+    /// Set the extensions to be activated. This is set to be empty by default.
+    pub fn extensions(mut self, extensions: Iso9660Extensions) -> Self {
+        self.extensions = extensions;
+        self
+    }
+
+    /// Build the iso9660 type with the set options.
+    /// Returns `None` on error.
+    pub fn build(self) -> Option<Iso9660> {
+        let path = CString::new(self.path.to_str()?).ok()?;
+
+        Iso9660::open(&path, self.extensions)
+    }
+}
+
 impl Drop for Iso9660 {
     fn drop(&mut self) {
         let _ = unsafe { libcdio_sys::iso9660_close(self.ptr.as_ptr()) };
@@ -93,9 +128,22 @@ impl Drop for Iso9660 {
 mod tests {
     use super::*;
 
+    fn test_rockridge_file() -> &'static Path {
+        Path::new("../test-data/rock-ridge.iso")
+    }
+
     #[test_log::test(test)]
     fn new() {
-        let iso = Iso9660::new(Path::new("../test-data/rock-ridge.iso"));
+        let iso = Iso9660::new(test_rockridge_file());
+        assert!(iso.is_some());
+    }
+
+    #[test]
+    fn builder() {
+        let extensions = Iso9660Extensions::HighSierra & Iso9660Extensions::RockRidge;
+        let iso = Iso9660::builder(test_rockridge_file())
+            .extensions(extensions)
+            .build();
         assert!(iso.is_some());
     }
 }
