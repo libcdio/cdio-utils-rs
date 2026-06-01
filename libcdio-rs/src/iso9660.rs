@@ -97,6 +97,11 @@ impl Iso9660 {
         self.get_identifier(libcdio_sys::iso9660_ifs_get_application_id)
     }
 
+    /// Returns the Data Preparer Identifier.
+    pub fn data_preparer(&self) -> Option<String> {
+        self.get_identifier(libcdio_sys::iso9660_ifs_get_preparer_id)
+    }
+
     /// Returns the Joliet level.
     /// # Note
     /// [`Self`] must be constructed with the joliet extension enabled,
@@ -219,5 +224,12 @@ mod tests {
             &iso.application().unwrap(),
             "K3B THE CD KREATOR VERSION 0.11.20 (C) 2003 SEBASTIAN TRUEG AND THE K3B TEAM"
         );
+    }
+
+    #[test]
+    fn data_preparer() {
+        let iso = Iso9660::new(test_rockridge_file()).unwrap();
+        assert_eq!(&iso.data_preparer().unwrap(), "K3b - Version 0.11.20",);
+    }
     }
 }
