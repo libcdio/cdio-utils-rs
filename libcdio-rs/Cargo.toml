@@ -14,6 +14,7 @@ repository.workspace = true
 iso9660 = ["libcdio-sys/iso9660"]
 
 [dependencies]
+bitflags = "2.11.1"
 libcdio-sys.workspace = true
 num_enum = "0.7.6"
 tracing.workspace = true

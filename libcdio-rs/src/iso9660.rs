@@ -23,6 +23,15 @@ use std::{
     ptr::NonNull,
 };
 
+use bitflags::bitflags;
+use libcdio_sys::{
+    iso_extension_enum_s_ISO_EXTENSION_HIGH_SIERRA,
+    iso_extension_enum_s_ISO_EXTENSION_JOLIET_LEVEL1,
+    iso_extension_enum_s_ISO_EXTENSION_JOLIET_LEVEL2,
+    iso_extension_enum_s_ISO_EXTENSION_JOLIET_LEVEL3,
+    iso_extension_enum_s_ISO_EXTENSION_ROCK_RIDGE,
+};
+
 use crate::logging::init_logger;
 
 /// The main ISO 9660 type
@@ -30,20 +39,43 @@ pub struct Iso9660 {
     pub(crate) ptr: NonNull<libcdio_sys::iso9660_t>,
 }
 
+bitflags! {
+    /// ISO 9660 Extensions.
+    /// # Examples
+    /// ```rust, no_run
+    /// use libcdio_rs::iso9660::Iso9660Extensions;
+    /// // pick HighSierra and RockRidge
+    /// let extensions = Iso9660Extensions::HighSierra & Iso9660Extensions::RockRidge;
+    /// // pick everything except RockRidge
+    /// let extensions = Iso9660Extensions::all() - Iso9660Extensions::RockRidge;
+    /// // pick nothing
+    /// let extensions = Iso9660Extensions::empty();
+    /// ```
+    #[derive(Clone, Copy, Debug)]
+    pub struct Iso9660Extensions: u8 {
+        const HighSierra = iso_extension_enum_s_ISO_EXTENSION_HIGH_SIERRA as _;
+        const JolietLevel1 = iso_extension_enum_s_ISO_EXTENSION_JOLIET_LEVEL1 as _;
+        const JolietLevel2 = iso_extension_enum_s_ISO_EXTENSION_JOLIET_LEVEL2 as _;
+        const JolietLevel3 = iso_extension_enum_s_ISO_EXTENSION_JOLIET_LEVEL3 as _;
+        const RockRidge = iso_extension_enum_s_ISO_EXTENSION_ROCK_RIDGE as _;
+    }
+}
+
 impl Iso9660 {
-    /// Open an ISO 9660 image for reading at given `path`.
-    /// Returns `None` on error.
+    /// Open an ISO 9660 image for reading at given `path`, with all iso9660
+    /// extension flags enabled. Returns `None` on error.
     pub fn new(path: &Path) -> Option<Self> {
         let path = CString::new(path.to_str()?).ok()?;
 
-        Self::open(&path)
+        Self::open(&path, Iso9660Extensions::all())
     }
 
-    fn open(path: &CStr) -> Option<Self> {
+    fn open(path: &CStr, extensions: Iso9660Extensions) -> Option<Self> {
         init_logger();
 
         // SAFETY: path is duplicated by the method, so its safe to drop afterwards
-        let iso9660_ptr = unsafe { libcdio_sys::iso9660_open(path.as_ptr()) };
+        let iso9660_ptr =
+            unsafe { libcdio_sys::iso9660_open_ext(path.as_ptr(), extensions.bits()) };
 
         Some(Self {
             ptr: NonNull::new(iso9660_ptr)?,
