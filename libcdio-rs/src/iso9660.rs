@@ -102,6 +102,11 @@ impl Iso9660 {
         self.get_identifier(libcdio_sys::iso9660_ifs_get_preparer_id)
     }
 
+    /// Returns the Publisher Identifier.
+    pub fn publisher(&self) -> Option<String> {
+        self.get_identifier(libcdio_sys::iso9660_ifs_get_publisher_id)
+    }
+
     /// Returns the Joliet level.
     /// # Note
     /// [`Self`] must be constructed with the joliet extension enabled,
@@ -230,6 +235,12 @@ mod tests {
     fn data_preparer() {
         let iso = Iso9660::new(test_rockridge_file()).unwrap();
         assert_eq!(&iso.data_preparer().unwrap(), "K3b - Version 0.11.20",);
+    }
+
+    #[test]
+    fn publisher() {
+        let iso = Iso9660::new(test_rockridge_file()).unwrap();
+        assert_eq!(&iso.publisher().unwrap(), "Rocky Bernstein");
     }
     }
 }
