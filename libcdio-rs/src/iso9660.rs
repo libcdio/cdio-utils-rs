@@ -25,7 +25,7 @@ use std::{
 
 use bitflags::bitflags;
 use libcdio_sys::{
-    iso_extension_enum_s_ISO_EXTENSION_HIGH_SIERRA,
+    bool_3way_t_nope, bool_3way_t_yep, iso_extension_enum_s_ISO_EXTENSION_HIGH_SIERRA,
     iso_extension_enum_s_ISO_EXTENSION_JOLIET_LEVEL1,
     iso_extension_enum_s_ISO_EXTENSION_JOLIET_LEVEL2,
     iso_extension_enum_s_ISO_EXTENSION_JOLIET_LEVEL3,
@@ -135,6 +135,21 @@ impl Iso9660 {
             .expect("iso9660_ifs_get_joliet_level() should return a valid joliet level");
 
         Some(joliet_level)
+    }
+
+    /// Checks if any file has Rock Ridge extensions. Returns `None` on error.
+    /// This can be time consuming, therefore `file_limit` can be provided to
+    /// limit the number of files to scan.
+    pub fn have_rock_ridge(&self, file_limit: Option<u64>) -> Option<bool> {
+        let file_limit = file_limit.unwrap_or(u64::MAX);
+        let result = unsafe { libcdio_sys::iso9660_have_rr(self.ptr.as_ptr(), file_limit) };
+
+        #[allow(non_upper_case_globals)]
+        match result {
+            bool_3way_t_yep => Some(true),
+            bool_3way_t_nope => Some(false),
+            _ => None,
+        }
     }
 
     fn open(path: &CStr, extensions: Iso9660Extensions) -> Option<Self> {
@@ -274,5 +289,11 @@ mod tests {
     fn volume_set() {
         let iso = Iso9660::new(test_rockridge_file()).unwrap();
         assert!(&iso.volume_set().is_none());
+    }
+
+    #[test]
+    fn have_rock_ridge() {
+        let iso = Iso9660::new(test_rockridge_file()).unwrap();
+        assert!(iso.have_rock_ridge(None).unwrap());
     }
 }
