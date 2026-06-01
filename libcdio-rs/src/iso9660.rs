@@ -107,6 +107,11 @@ impl Iso9660 {
         self.get_identifier(libcdio_sys::iso9660_ifs_get_publisher_id)
     }
 
+    /// Returns the System Identifier.
+    pub fn system(&self) -> Option<String> {
+        self.get_identifier(libcdio_sys::iso9660_ifs_get_system_id)
+    }
+
     /// Returns the Joliet level.
     /// # Note
     /// [`Self`] must be constructed with the joliet extension enabled,
@@ -241,6 +246,12 @@ mod tests {
     fn publisher() {
         let iso = Iso9660::new(test_rockridge_file()).unwrap();
         assert_eq!(&iso.publisher().unwrap(), "Rocky Bernstein");
+    }
+
+    #[test]
+    fn system() {
+        let iso = Iso9660::new(test_rockridge_file()).unwrap();
+        assert_eq!(&iso.system().unwrap(), "LINUX");
     }
     }
 }
