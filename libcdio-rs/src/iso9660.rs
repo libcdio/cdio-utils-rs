@@ -117,6 +117,11 @@ impl Iso9660 {
         self.get_identifier(libcdio_sys::iso9660_ifs_get_volume_id)
     }
 
+    /// Returns the Volume Set Identifier.
+    pub fn volume_set(&self) -> Option<String> {
+        self.get_identifier(libcdio_sys::iso9660_ifs_get_volumeset_id)
+    }
+
     /// Returns the Joliet level.
     /// # Note
     /// [`Self`] must be constructed with the joliet extension enabled,
@@ -264,5 +269,10 @@ mod tests {
         let iso = Iso9660::new(test_rockridge_file()).unwrap();
         assert_eq!(&iso.volume().unwrap(), "Rock Ridge Copy test");
     }
+
+    #[test]
+    fn volume_set() {
+        let iso = Iso9660::new(test_rockridge_file()).unwrap();
+        assert!(&iso.volume_set().is_none());
     }
 }
