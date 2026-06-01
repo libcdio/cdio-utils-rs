@@ -18,9 +18,9 @@
 //! ISO 9660 filesystem related routines.
 
 use std::{
-    ffi::{CStr, CString},
+    ffi::{CStr, CString, c_char},
     path::Path,
-    ptr::NonNull,
+    ptr::{self, NonNull},
 };
 
 use bitflags::bitflags;
@@ -29,7 +29,7 @@ use libcdio_sys::{
     iso_extension_enum_s_ISO_EXTENSION_JOLIET_LEVEL1,
     iso_extension_enum_s_ISO_EXTENSION_JOLIET_LEVEL2,
     iso_extension_enum_s_ISO_EXTENSION_JOLIET_LEVEL3,
-    iso_extension_enum_s_ISO_EXTENSION_ROCK_RIDGE,
+    iso_extension_enum_s_ISO_EXTENSION_ROCK_RIDGE, iso9660_t,
 };
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
@@ -37,7 +37,7 @@ use crate::logging::init_logger;
 
 /// The main ISO 9660 type
 pub struct Iso9660 {
-    pub(crate) ptr: NonNull<libcdio_sys::iso9660_t>,
+    pub(crate) ptr: NonNull<iso9660_t>,
 }
 
 /// A builder for [Iso9660].
@@ -92,6 +92,11 @@ impl Iso9660 {
         Iso9660Builder::new(path)
     }
 
+    /// Returns the Application Identifier.
+    pub fn application(&self) -> Option<String> {
+        self.get_identifier(libcdio_sys::iso9660_ifs_get_application_id)
+    }
+
     /// Returns the Joliet level.
     /// # Note
     /// [`Self`] must be constructed with the joliet extension enabled,
@@ -117,6 +122,32 @@ impl Iso9660 {
         Some(Self {
             ptr: NonNull::new(iso9660_ptr)?,
         })
+    }
+
+    /// Helper for the methods that return iso9660 identifiers.
+    fn get_identifier(
+        &self,
+        func: unsafe extern "C" fn(*mut iso9660_t, *mut *mut c_char) -> bool,
+    ) -> Option<String> {
+        let mut identifier_ptr = ptr::null_mut();
+
+        // SAFETY: The method allocates a string and points the identifier_ptr to it.
+        // It must be freed after use.
+        let success = unsafe { func(self.ptr.as_ptr(), &raw mut identifier_ptr) };
+        if !success || identifier_ptr.is_null() {
+            return None;
+        }
+
+        let identifier = unsafe { CStr::from_ptr(identifier_ptr) };
+        let identifier = identifier.to_string_lossy().to_string();
+
+        // SAFETY: application_id has been duplicated into a Rust string
+        // above, thus safe to free
+        unsafe {
+            libcdio_sys::cdio_free(identifier_ptr.cast());
+        }
+
+        Some(identifier)
     }
 }
 
@@ -180,5 +211,13 @@ mod tests {
         let iso = Iso9660::new(test_joliet_file()).unwrap();
         assert_eq!(iso.joliet_level().unwrap(), JolietLevel::Three);
     }
+
+    #[test]
+    fn application() {
+        let iso = Iso9660::new(test_rockridge_file()).unwrap();
+        assert_eq!(
+            &iso.application().unwrap(),
+            "K3B THE CD KREATOR VERSION 0.11.20 (C) 2003 SEBASTIAN TRUEG AND THE K3B TEAM"
+        );
     }
 }
