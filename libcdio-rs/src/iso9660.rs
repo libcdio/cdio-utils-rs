@@ -31,6 +31,7 @@ use libcdio_sys::{
     iso_extension_enum_s_ISO_EXTENSION_JOLIET_LEVEL3,
     iso_extension_enum_s_ISO_EXTENSION_ROCK_RIDGE,
 };
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::logging::init_logger;
 
@@ -68,6 +69,15 @@ bitflags! {
     }
 }
 
+/// Joliet level.
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
+pub enum JolietLevel {
+    One = 1,
+    Two,
+    Three,
+}
+
 impl Iso9660 {
     /// Open an ISO 9660 image for reading at given `path`, with all iso9660
     /// extension flags enabled. Returns `None` on error.
@@ -80,6 +90,21 @@ impl Iso9660 {
     /// Returns a builder object. See [`Iso9660Builder`].
     pub fn builder<'a>(path: &'a Path) -> Iso9660Builder<'a> {
         Iso9660Builder::new(path)
+    }
+
+    /// Returns the Joliet level.
+    /// # Note
+    /// [`Self`] must be constructed with the joliet extension enabled,
+    /// otherwise this will return `None` even if the file has Joliet.
+    pub fn joliet_level(&self) -> Option<JolietLevel> {
+        let joliet_level = unsafe { libcdio_sys::iso9660_ifs_get_joliet_level(self.ptr.as_ptr()) };
+        if joliet_level == 0 {
+            return None;
+        }
+        let joliet_level = JolietLevel::try_from(joliet_level)
+            .expect("iso9660_ifs_get_joliet_level() should return a valid joliet level");
+
+        Some(joliet_level)
     }
 
     fn open(path: &CStr, extensions: Iso9660Extensions) -> Option<Self> {
@@ -131,6 +156,9 @@ mod tests {
     fn test_rockridge_file() -> &'static Path {
         Path::new("../test-data/rock-ridge.iso")
     }
+    fn test_joliet_file() -> &'static Path {
+        Path::new("../test-data/joliet.iso")
+    }
 
     #[test_log::test(test)]
     fn new() {
@@ -145,5 +173,12 @@ mod tests {
             .extensions(extensions)
             .build();
         assert!(iso.is_some());
+    }
+
+    #[test]
+    fn joliet_level() {
+        let iso = Iso9660::new(test_joliet_file()).unwrap();
+        assert_eq!(iso.joliet_level().unwrap(), JolietLevel::Three);
+    }
     }
 }
