@@ -17,6 +17,9 @@
 
 //! ISO 9660 filesystem related routines.
 
+mod ds;
+pub mod stat;
+
 use std::{
     ffi::{CStr, CString, c_char},
     path::Path,
@@ -221,13 +224,13 @@ impl Drop for Iso9660 {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
-    fn test_rockridge_file() -> &'static Path {
+    pub fn test_rockridge_file() -> &'static Path {
         Path::new("../test-data/rock-ridge.iso")
     }
-    fn test_joliet_file() -> &'static Path {
+    pub fn test_joliet_file() -> &'static Path {
         Path::new("../test-data/joliet.iso")
     }
 
