@@ -25,11 +25,12 @@ use std::{
 
 use libcdio_sys::iso9660_stat_s;
 
-use crate::iso9660::{Iso9660, ds};
+use crate::iso9660::{Iso9660, JolietLevel, ds};
 
 /// ISO 9660 file/directory metadata.
 pub struct Iso9660Stat {
     pub(crate) stat: NonNull<iso9660_stat_s>,
+    pub(crate) joliet_level: Option<JolietLevel>,
 }
 
 impl Iso9660 {
@@ -48,6 +49,7 @@ impl Iso9660 {
             .filter_map(|stat| {
                 Some(Iso9660Stat {
                     stat: NonNull::new(stat.cast())?,
+                    joliet_level: self.joliet_level(),
                 })
             })
             .collect();
@@ -69,6 +71,34 @@ impl Iso9660Stat {
         let name = unsafe { CStr::from_ptr(name).to_str() };
 
         name.inspect_err(|err| tracing::error!(%err)).ok()
+    }
+
+    /// Returns a filename in a format used for a listing.
+    /// - Lowercase name if no Joliet Extension interpretation.
+    /// - Remove trailing ;1 or .;1
+    /// - Turn the other ; into version numbers.
+    ///
+    /// Returns `None` if the string has non UTF-8 characters or on error.
+    pub fn filename(&self) -> Option<String> {
+        let filename = unsafe { (*self.stat.as_ptr()).filename.as_ptr() };
+        if filename.is_null() {
+            return None;
+        }
+
+        let filename = unsafe { CStr::from_ptr(filename) };
+        let mut translated_name = vec![0; filename.count_bytes() + 1];
+        let joliet_level = self.joliet_level.map(u8::from).unwrap_or(0);
+
+        let len = unsafe {
+            libcdio_sys::iso9660_name_translate_ext(
+                filename.as_ptr(),
+                translated_name.as_mut_ptr().cast(),
+                joliet_level,
+            )
+        };
+        translated_name.truncate(len as usize);
+
+        String::from_utf8(translated_name).ok()
     }
 }
 
@@ -102,6 +132,17 @@ mod tests {
         assert_eq!(
             &names,
             &[".", "..", "copy", "Copy2", "COPYING", "fd0", "tmp", "zero"]
+        );
+    }
+
+    #[test]
+    fn filename_translated() {
+        let iso = Iso9660::new(test_rockridge_file()).unwrap();
+        let entries = iso.read_dir(Path::new("/")).unwrap();
+        let names: Vec<_> = entries.iter().map(|e| e.filename().unwrap()).collect();
+        assert_eq!(
+            &names,
+            &[".", "..", "copy", "copy2", "copying", "fd0", "tmp", "zero"]
         );
     }
 }
