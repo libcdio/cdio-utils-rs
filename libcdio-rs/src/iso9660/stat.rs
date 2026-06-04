@@ -116,6 +116,11 @@ impl Iso9660Stat {
     pub fn total_size(&self) -> u64 {
         unsafe { (*self.stat.as_ptr()).total_size }
     }
+
+    /// Return the logical sector number.
+    pub fn lsn(&self) -> i32 {
+        unsafe { (*self.stat.as_ptr()).lsn }
+    }
 }
 
 impl Drop for Iso9660Stat {
@@ -174,5 +179,12 @@ mod tests {
         let iso = Iso9660::new(test_rockridge_file()).unwrap();
         let entry = iso.stat(Path::new("/COPYING")).unwrap();
         assert_eq!(entry.total_size(), 17992);
+    }
+
+    #[test]
+    fn lsn() {
+        let iso = Iso9660::new(test_rockridge_file()).unwrap();
+        let entry = iso.stat(Path::new("/COPYING")).unwrap();
+        assert_eq!(entry.lsn(), 27);
     }
 }
