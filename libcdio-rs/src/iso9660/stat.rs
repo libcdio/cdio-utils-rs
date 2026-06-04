@@ -56,6 +56,17 @@ impl Iso9660 {
 
         Some(dirlist)
     }
+
+    /// Return stat for `path`. `None` is returned on error.
+    pub fn stat(&self, path: &Path) -> Option<Iso9660Stat> {
+        let path = CString::new(path.to_str()?).ok()?;
+        let stat = unsafe { libcdio_sys::iso9660_ifs_stat(self.ptr.as_ptr(), path.as_ptr()) };
+
+        Some(Iso9660Stat {
+            stat: NonNull::new(stat)?,
+            joliet_level: self.joliet_level(),
+        })
+    }
 }
 
 impl Iso9660Stat {
@@ -144,5 +155,12 @@ mod tests {
             &names,
             &[".", "..", "copy", "copy2", "copying", "fd0", "tmp", "zero"]
         );
+    }
+
+    #[test]
+    fn stat() {
+        let iso = Iso9660::new(test_rockridge_file()).unwrap();
+        let stat = iso.stat(Path::new("/copy")).unwrap();
+        assert_eq!(stat.filename().unwrap(), "copy");
     }
 }
