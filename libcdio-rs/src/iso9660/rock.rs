@@ -34,6 +34,8 @@ pub struct RockRidge {
     pub mode: Mode,
     /// Symlink target
     pub symlink: Option<String>,
+    /// User ID
+    pub user_id: u32,
 }
 
 impl Iso9660 {
@@ -74,6 +76,7 @@ impl Iso9660Stat {
                     symlink.to_str().ok().map(ToString::to_string)
                 }
             },
+            user_id: rock.st_uid,
         })
     }
 }
@@ -151,5 +154,13 @@ mod tests {
         let stat = iso.stat(Path::new("/copy")).unwrap();
         let rock = stat.rock_ridge().unwrap();
         assert_eq!(rock.hard_links, 2);
+    }
+
+    #[test]
+    fn user_id() {
+        let iso = Iso9660::new(test_rockridge_file()).unwrap();
+        let stat = iso.stat(Path::new("/COPYING")).unwrap();
+        let rock = stat.rock_ridge().unwrap();
+        assert_eq!(rock.user_id, 0);
     }
 }
