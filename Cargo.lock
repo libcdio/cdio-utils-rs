@@ -163,6 +163,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
+name = "file-mode"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "773ea145485772b8d354624b32adbe20e776353d3e48c7b03ef44e3455e9815c"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "glob"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -222,6 +231,7 @@ name = "libcdio-rs"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "file-mode",
  "libcdio-sys",
  "num_enum",
  "test-log",

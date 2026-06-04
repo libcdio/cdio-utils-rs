@@ -17,9 +17,18 @@
 
 //! ISO 9660 Rock Ridge extensions.
 
+use file_mode::Mode;
 use libcdio_sys::{bool_3way_t_nope, bool_3way_t_yep};
 
-use crate::iso9660::Iso9660;
+use crate::iso9660::{Iso9660, stat::Iso9660Stat};
+
+/// ISO 9660 Rock Ridge extensions.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct RockRidge {
+    /// Unix file mode
+    pub mode: Mode,
+}
 
 impl Iso9660 {
     /// Checks if any file has Rock Ridge extensions. Returns `None` on error.
@@ -38,9 +47,27 @@ impl Iso9660 {
     }
 }
 
+impl Iso9660Stat {
+    /// Rock Ridge extensions.
+    /// `None` is returned if Rock ridge extensions are missing, or if it
+    /// could not be determined.
+    pub fn rock_ridge(&self) -> Option<RockRidge> {
+        let rock = unsafe { (*self.stat.as_ptr()).rr };
+        if rock.b3_rock != bool_3way_t_yep {
+            return None;
+        }
+
+        Some(RockRidge {
+            mode: Mode::new(rock.st_mode, u32::MAX),
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::iso9660::tests::test_rockridge_file;
+    use std::path::Path;
+
+    use crate::iso9660::tests::{test_joliet_file, test_rockridge_file};
 
     use super::*;
 
@@ -48,5 +75,37 @@ mod tests {
     fn have_rock_ridge() {
         let iso = Iso9660::new(test_rockridge_file()).unwrap();
         assert!(iso.have_rock_ridge(None).unwrap());
+    }
+
+    #[test]
+    fn rock_ridge() {
+        let iso = Iso9660::new(test_rockridge_file()).unwrap();
+        let stat = iso.stat(Path::new("/COPYING")).unwrap();
+        assert!(stat.rock_ridge().is_some());
+
+        let iso = Iso9660::new(test_joliet_file()).unwrap();
+        let stat = iso.stat(Path::new("/libcdio/COPYING")).unwrap();
+        assert!(stat.rock_ridge().is_none());
+    }
+
+    #[test]
+    fn mode() {
+        let iso = Iso9660::new(test_rockridge_file()).unwrap();
+
+        let stat = iso.stat(Path::new("/zero")).unwrap();
+        let mode = stat.rock_ridge().unwrap().mode;
+        assert_eq!(&mode.to_string(), "cr--r--r--");
+
+        let stat = iso.stat(Path::new("/fd0")).unwrap();
+        let mode = stat.rock_ridge().unwrap().mode;
+        assert_eq!(&mode.to_string(), "br--r--r--");
+
+        let stat = iso.stat(Path::new("/Copy2")).unwrap();
+        let mode = stat.rock_ridge().unwrap().mode;
+        assert_eq!(&mode.to_string(), "lr-xr-xr-x");
+
+        let stat = iso.stat(Path::new("/copy")).unwrap();
+        let mode = stat.rock_ridge().unwrap().mode;
+        assert_eq!(&mode.to_string(), "dr-xr-xr-x");
     }
 }
