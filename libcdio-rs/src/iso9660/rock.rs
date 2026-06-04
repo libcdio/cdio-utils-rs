@@ -17,6 +17,8 @@
 
 //! ISO 9660 Rock Ridge extensions.
 
+use std::ffi::CStr;
+
 use file_mode::Mode;
 use libcdio_sys::{bool_3way_t_nope, bool_3way_t_yep};
 
@@ -28,6 +30,8 @@ use crate::iso9660::{Iso9660, stat::Iso9660Stat};
 pub struct RockRidge {
     /// Unix file mode
     pub mode: Mode,
+    /// Symlink target
+    pub symlink_to: Option<String>,
 }
 
 impl Iso9660 {
@@ -59,6 +63,18 @@ impl Iso9660Stat {
 
         Some(RockRidge {
             mode: Mode::new(rock.st_mode, u32::MAX),
+            symlink_to: {
+                if rock.psz_symlink.is_null() {
+                    None
+                } else {
+                    let symlink = unsafe { CStr::from_ptr(rock.psz_symlink) };
+                    symlink
+                        .to_str()
+                        .ok()
+                        .filter(|link| !link.is_empty())
+                        .map(ToString::to_string)
+                }
+            },
         })
     }
 }
@@ -107,5 +123,22 @@ mod tests {
         let stat = iso.stat(Path::new("/copy")).unwrap();
         let mode = stat.rock_ridge().unwrap().mode;
         assert_eq!(&mode.to_string(), "dr-xr-xr-x");
+    }
+
+    #[test]
+    fn symlink_to() {
+        let iso = Iso9660::new(test_rockridge_file()).unwrap();
+
+        let stat = iso.stat(Path::new("/COPYING")).unwrap();
+        let rock = stat.rock_ridge().unwrap();
+        assert!(rock.symlink_to.is_none());
+
+        let stat = iso.stat(Path::new("/Copy2")).unwrap();
+        let rock = stat.rock_ridge().unwrap();
+        assert_eq!(rock.symlink_to.unwrap(), "COPYING");
+
+        let stat = iso.stat(Path::new("/tmp/COPYING")).unwrap();
+        let rock = stat.rock_ridge().unwrap();
+        assert_eq!(rock.symlink_to.unwrap(), "../copying/COPYING");
     }
 }
