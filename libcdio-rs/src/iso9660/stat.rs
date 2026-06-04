@@ -111,6 +111,11 @@ impl Iso9660Stat {
 
         String::from_utf8(translated_name).ok()
     }
+
+    /// Multi-extent aware size, in bytes.
+    pub fn total_size(&self) -> u64 {
+        unsafe { (*self.stat.as_ptr()).total_size }
+    }
 }
 
 impl Drop for Iso9660Stat {
@@ -162,5 +167,12 @@ mod tests {
         let iso = Iso9660::new(test_rockridge_file()).unwrap();
         let stat = iso.stat(Path::new("/copy")).unwrap();
         assert_eq!(stat.filename().unwrap(), "copy");
+    }
+
+    #[test]
+    fn total_size() {
+        let iso = Iso9660::new(test_rockridge_file()).unwrap();
+        let entry = iso.stat(Path::new("/COPYING")).unwrap();
+        assert_eq!(entry.total_size(), 17992);
     }
 }
