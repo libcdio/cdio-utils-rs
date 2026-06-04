@@ -28,6 +28,8 @@ use crate::iso9660::{Iso9660, stat::Iso9660Stat};
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct RockRidge {
+    /// Group ID
+    pub group_id: u32,
     /// Number of hard links
     pub hard_links: u32,
     /// Unix file mode
@@ -66,6 +68,7 @@ impl Iso9660Stat {
         }
 
         Some(RockRidge {
+            group_id: rock.st_gid,
             hard_links: rock.st_nlinks,
             mode: Mode::new(rock.st_mode, u32::MAX),
             symlink_to: {
@@ -166,5 +169,13 @@ mod tests {
         let stat = iso.stat(Path::new("/COPYING")).unwrap();
         let rock = stat.rock_ridge().unwrap();
         assert_eq!(rock.user_id, 0);
+    }
+
+    #[test]
+    fn group_id() {
+        let iso = Iso9660::new(test_rockridge_file()).unwrap();
+        let stat = iso.stat(Path::new("/COPYING")).unwrap();
+        let rock = stat.rock_ridge().unwrap();
+        assert_eq!(rock.group_id, 0);
     }
 }
