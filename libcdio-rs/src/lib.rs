@@ -21,3 +21,6 @@ pub mod device;
 pub mod iso9660;
 mod logging;
 pub mod mmc;
+
+#[cfg(feature = "iso9660")]
+pub use time;

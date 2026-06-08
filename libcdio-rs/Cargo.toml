@@ -11,17 +11,19 @@ readme = "README.md"
 repository.workspace = true
 
 [features]
-iso9660 = ["libcdio-sys/iso9660"]
+iso9660 = ["libcdio-sys/iso9660", "dep:time"]
 
 [dependencies]
 bitflags = "2.11.1"
 file-mode = "0.1.2"
 libcdio-sys.workspace = true
 num_enum = "0.7.6"
+time = { optional = true, workspace = true }
 tracing.workspace = true
 
 [dev-dependencies]
 test-log.workspace = true
+time = { workspace = true, features = ["macros"] }
 
 [package.metadata.docs.rs]
 all-features = true
