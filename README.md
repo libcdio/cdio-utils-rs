@@ -38,6 +38,17 @@ To run ignored tests, which require some extra setup:
 cargo test -- --include-ignored
 ```
 
+### Use the provided Git Hooks
+These automatically perform lint and formatting checks:
+```sh
+git config core.hooksPath .githooks
+```
+
+To skip hooks, use `--no-verify`:
+```sh
+git commit --no-verify
+```
+
 ### How to use a local build of libcdio
 Build libcdio with the `--without-versioned-libs` option.
 ```sh
