@@ -21,6 +21,7 @@ mod ds;
 pub mod rock;
 pub mod stat;
 mod util;
+pub mod xa;
 
 use std::{
     ffi::{CStr, CString, c_char},
