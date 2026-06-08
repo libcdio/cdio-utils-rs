@@ -29,6 +29,7 @@ pub struct CdRomXa {
     pub file_num: u8,
     pub group_id: u16,
     pub user_id: u16,
+    total_size: u64,
 }
 
 bitflags! {
@@ -67,7 +68,26 @@ impl Iso9660Stat {
             file_num: u8::from_be(xa.filenum),
             group_id: u16::from_be(xa.group_id),
             user_id: u16::from_be(xa.user_id),
+            total_size: self.total_size(),
         })
+    }
+}
+
+impl CdRomXa {
+    /// Return multi extent size.
+    /// Returns `None` if not using Mode2/Form2 encoding.
+    // TODO: Add unit test
+    pub const fn mode2form2_size(&self) -> Option<u64> {
+        if !self.file_attr.contains(XaFileAttributes::Mode2Form2) {
+            return None;
+        }
+
+        const ISO_BLOCK_BYTES: u64 = 2048;
+        const MODE2FORM2_SECTOR_BYTES: u64 = 2324;
+
+        let total_sectors = self.total_size.div_ceil(ISO_BLOCK_BYTES);
+
+        Some(total_sectors * MODE2FORM2_SECTOR_BYTES)
     }
 }
 
