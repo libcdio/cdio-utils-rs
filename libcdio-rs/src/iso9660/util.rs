@@ -15,12 +15,20 @@
 // You should have received a copy of the GNU General Public License
 // along with libcdio-rs. If not, see <https://www.gnu.org/licenses/>.
 
-pub mod cdio;
-pub mod device;
-#[cfg(feature = "iso9660")]
-pub mod iso9660;
-mod logging;
-pub mod mmc;
+//! Utility methods such as conversions
 
-#[cfg(feature = "iso9660")]
-pub use time;
+use time::{Date, OffsetDateTime, Time, UtcOffset, error};
+
+/// Convert timestamp from `tm` to `OffsetDateTime`.
+pub fn convert_tm(tm: libcdio_sys::tm) -> Result<OffsetDateTime, error::ComponentRange> {
+    const TM_YEAR_OFFSET: i32 = 1900;
+    const TM_ORDINAL_DAY_OFFSET: u16 = 1;
+    let date = Date::from_ordinal_date(
+        tm.tm_year + TM_YEAR_OFFSET,
+        tm.tm_yday as u16 + TM_ORDINAL_DAY_OFFSET,
+    )?;
+    let time = Time::from_hms(tm.tm_hour as _, tm.tm_min as _, tm.tm_sec as _)?;
+    let offset: time::UtcOffset = UtcOffset::from_whole_seconds(tm.tm_gmtoff as _)?;
+
+    Ok(OffsetDateTime::new_in_offset(date, time, offset))
+}

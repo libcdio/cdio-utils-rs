@@ -17,23 +17,28 @@
 
 //! ISO 9660 Rock Ridge extensions.
 
-use std::ffi::CStr;
+use std::{ffi::CStr, mem::MaybeUninit};
 
 use file_mode::Mode;
-use libcdio_sys::{bool_3way_t_nope, bool_3way_t_yep};
+use libcdio_sys::{bool_3way_t_nope, bool_3way_t_yep, iso_rock_time_s};
+use time::OffsetDateTime;
 
-use crate::iso9660::{Iso9660, stat::Iso9660Stat};
+use crate::iso9660::{Iso9660, stat::Iso9660Stat, util};
 
 /// ISO 9660 Rock Ridge extensions.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct RockRidge {
+    /// Create time
+    pub create_time: Option<OffsetDateTime>,
     /// Group ID
     pub group_id: u32,
     /// Number of hard links
     pub hard_links: u32,
     /// Unix file mode
     pub mode: Mode,
+    /// Modify time
+    pub modify_time: Option<OffsetDateTime>,
     /// Symlink target
     pub symlink_to: Option<String>,
     /// User ID
@@ -68,9 +73,11 @@ impl Iso9660Stat {
         }
 
         Some(RockRidge {
+            create_time: convert_rock_timefield(rock.create),
             group_id: rock.st_gid,
             hard_links: rock.st_nlinks,
             mode: Mode::new(rock.st_mode, u32::MAX),
+            modify_time: convert_rock_timefield(rock.modify),
             symlink_to: {
                 if rock.psz_symlink.is_null() {
                     None
@@ -88,9 +95,30 @@ impl Iso9660Stat {
     }
 }
 
+fn convert_rock_timefield(field: iso_rock_time_s) -> Option<OffsetDateTime> {
+    if !field.b_used {
+        return None;
+    };
+
+    let mut tm = MaybeUninit::uninit();
+    if field.b_longdate {
+        // SAFETY: ltime is valid as indicated by the if check
+        unsafe { libcdio_sys::iso9660_get_ltime(&raw const field.t.ltime, tm.as_mut_ptr()) };
+    } else {
+        // SAFETY: dtime is valid as indicated by the if check
+        unsafe { libcdio_sys::iso9660_get_dtime(&raw const field.t.dtime, true, tm.as_mut_ptr()) };
+    }
+    // SAFETY: The above ffi calls are infallible, thus tm should be initialized.
+    let tm = unsafe { tm.assume_init() };
+
+    util::convert_tm(tm).ok()
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::Path;
+
+    use time::macros::datetime;
 
     use crate::iso9660::tests::{test_joliet_file, test_rockridge_file};
 
@@ -177,5 +205,16 @@ mod tests {
         let stat = iso.stat(Path::new("/COPYING")).unwrap();
         let rock = stat.rock_ridge().unwrap();
         assert_eq!(rock.group_id, 0);
+    }
+
+    #[test]
+    fn time() {
+        let iso = Iso9660::new(test_rockridge_file()).unwrap();
+        let stat = iso.stat(Path::new("/COPYING")).unwrap();
+        let rock = stat.rock_ridge().unwrap();
+        assert_eq!(
+            rock.modify_time.unwrap(),
+            datetime!(2005-03-05 20:55:51.0 +05:30:00)
+        );
     }
 }
