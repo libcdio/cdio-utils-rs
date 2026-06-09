@@ -123,6 +123,11 @@ impl UdfEntry<'_> {
         Mode::new(mode, u32::MAX)
     }
 
+    /// Return the number of hard links of the entry.
+    pub fn link_count(&self) -> u16 {
+        unsafe { libcdio_sys::udf_get_link_count(self.entry.as_ptr()) }
+    }
+
     fn new(entry: NonNull<udf_dirent_s>) -> Self {
         Self {
             entry,
@@ -205,5 +210,13 @@ mod tests {
         let entry = root.next().unwrap();
         let entry = entry.next().unwrap();
         assert_eq!(&entry.mode().to_string(), "-r-xr-xr-x");
+    }
+
+    #[test]
+    fn link_count() {
+        let udf = Udf::new(test_udf_file()).unwrap();
+        let root = udf.root().unwrap();
+        let entry = root.next().unwrap().next().unwrap();
+        assert_eq!(entry.link_count(), 1);
     }
 }
