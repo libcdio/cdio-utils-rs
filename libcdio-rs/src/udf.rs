@@ -17,6 +17,8 @@
 
 //! UDF filesystem.
 
+pub mod entry;
+
 use std::{ffi::CString, path::Path, ptr::NonNull};
 
 use libcdio_sys::udf_t;
@@ -53,7 +55,7 @@ impl Drop for Udf {
 mod tests {
     use super::*;
 
-    fn test_udf_file() -> &'static Path {
+    pub fn test_udf_file() -> &'static Path {
         Path::new("../test-data/udf.iso")
     }
 
