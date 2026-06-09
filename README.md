@@ -73,11 +73,16 @@ export SYSTEM_DEPS_LIBISO9660_SEARCH_NATIVE="$LIBCDIO_ROOT/lib/iso9660/.libs"
 export SYSTEM_DEPS_LIBISO9660_INCLUDE="$LIBCDIO_ROOT/include"
 export SYSTEM_DEPS_LIBISO9660_LIB="iso9660"
 
+export SYSTEM_DEPS_LIBUDF_NO_PKG_CONFIG="yes"
+export SYSTEM_DEPS_LIBUDF_SEARCH_NATIVE="$LIBCDIO_ROOT/lib/udf/.libs"
+export SYSTEM_DEPS_LIBUDF_INCLUDE="$LIBCDIO_ROOT/include"
+export SYSTEM_DEPS_LIBUDF_LIB="udf"
+
 export BINDGEN_EXTRA_CLANG_ARGS="-I$LIBCDIO_ROOT/include"
-export LD_LIBRARY_PATH="$LIBCDIO_ROOT/lib/driver/.libs:$LIBCDIO_ROOT/lib/iso9660/.libs:$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="$LIBCDIO_ROOT/lib/driver/.libs:$LIBCDIO_ROOT/lib/iso9660/.libs:$LIBCDIO_ROOT/lib/udf/.libs:$LD_LIBRARY_PATH"
 
 # For macOS
-export LD_LIBRARY_PATH="$LIBCDIO_ROOT/lib/driver/.libs:$LIBCDIO_ROOT/lib/iso9660/.libs:$DYLD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="$LIBCDIO_ROOT/lib/driver/.libs:$LIBCDIO_ROOT/lib/iso9660/.libs:$LIBCDIO_ROOT/lib/udf/.libs:$DYLD_LIBRARY_PATH"
 ```
 
 That's it. Cargo should now use your local copy of libcdio.
