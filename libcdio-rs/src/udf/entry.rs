@@ -19,6 +19,7 @@
 
 use std::{ffi::CStr, marker::PhantomData, ptr::NonNull};
 
+use file_mode::Mode;
 use libcdio_sys::udf_dirent_s;
 use time::OffsetDateTime;
 
@@ -116,6 +117,12 @@ impl UdfEntry<'_> {
         unsafe { libcdio_sys::udf_get_file_length(self.entry.as_ptr()) }
     }
 
+    /// Return the POSIX file mode.
+    pub fn mode(&self) -> Mode {
+        let mode = unsafe { libcdio_sys::udf_get_posix_filemode(self.entry.as_ptr()) };
+        Mode::new(mode, u32::MAX)
+    }
+
     fn new(entry: NonNull<udf_dirent_s>) -> Self {
         Self {
             entry,
@@ -189,5 +196,14 @@ mod tests {
         let root = udf.root().unwrap();
         let file = root.next().unwrap().next().unwrap();
         assert_eq!(file.file_length(), 10);
+    }
+
+    #[test]
+    fn mode() {
+        let udf = Udf::new(test_udf_file()).unwrap();
+        let root = udf.root().unwrap();
+        let entry = root.next().unwrap();
+        let entry = entry.next().unwrap();
+        assert_eq!(&entry.mode().to_string(), "-r-xr-xr-x");
     }
 }
