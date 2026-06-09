@@ -12,6 +12,7 @@ repository.workspace = true
 
 [features]
 iso9660 = ["libcdio-sys/iso9660", "dep:time"]
+udf = ["libcdio-sys/udf"]
 
 [dependencies]
 bitflags = "2.11.1"
