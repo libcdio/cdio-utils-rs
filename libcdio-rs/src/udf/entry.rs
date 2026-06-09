@@ -86,6 +86,16 @@ impl UdfEntry<'_> {
         filename.to_str().ok()
     }
 
+    /// Return the next entry, or `None` on reaching end of file or on error.
+    pub fn next(self) -> Option<Self> {
+        // SAFETY: This always frees the passed entry, therefore prevent self's destructor
+        // from running
+        let next_entry = unsafe { libcdio_sys::udf_readdir(self.entry.as_ptr()) };
+        std::mem::forget(self);
+
+        NonNull::new(next_entry).map(Self::new)
+    }
+
     fn new(entry: NonNull<udf_dirent_s>) -> Self {
         Self {
             entry,
@@ -133,5 +143,16 @@ mod tests {
         let udf = Udf::new(test_udf_file()).unwrap();
         let root = udf.root().unwrap();
         assert_eq!(root.filename().unwrap(), "/");
+    }
+
+    #[test]
+    fn next() {
+        let udf = Udf::new(test_udf_file()).unwrap();
+        let root = udf.root().unwrap();
+        let next = root.next().unwrap();
+        assert_eq!(next.filename().unwrap(), ".");
+
+        let next = next.next().unwrap();
+        assert_eq!(next.filename().unwrap(), "FéжΘvrier");
     }
 }
