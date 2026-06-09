@@ -105,6 +105,11 @@ impl UdfEntry<'_> {
         Some(Self::new(NonNull::new(sub_entry)?))
     }
 
+    /// Is the entry a directory.
+    pub fn is_dir(&self) -> bool {
+        unsafe { libcdio_sys::udf_is_dir(self.entry.as_ptr()) }
+    }
+
     fn new(entry: NonNull<udf_dirent_s>) -> Self {
         Self {
             entry,
@@ -163,5 +168,12 @@ mod tests {
 
         let next = next.next().unwrap();
         assert_eq!(next.filename().unwrap(), "FéжΘvrier");
+    }
+
+    #[test]
+    fn is_dir() {
+        let udf = Udf::new(test_udf_file()).unwrap();
+        let root = udf.root().unwrap();
+        assert!(root.is_dir());
     }
 }
