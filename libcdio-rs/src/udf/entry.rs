@@ -40,10 +40,7 @@ impl Udf {
         // SAFETY: The returned value will be owned by UdfEntry
         let entry = unsafe { libcdio_sys::udf_get_root(self.udf.as_ptr(), true, 0) };
 
-        Some(UdfEntry {
-            entry: NonNull::new(entry)?,
-            _phantom: PhantomData,
-        })
+        Some(UdfEntry::new(NonNull::new(entry)?))
     }
 
     /// Return the root entry of the filesystem, from the given partition.
@@ -51,10 +48,7 @@ impl Udf {
     pub fn root_from_partition(&self, partition: u16) -> Option<UdfEntry<'_>> {
         let entry = unsafe { libcdio_sys::udf_get_root(self.udf.as_ptr(), false, partition) };
 
-        Some(UdfEntry {
-            entry: NonNull::new(entry)?,
-            _phantom: PhantomData,
-        })
+        Some(UdfEntry::new(NonNull::new(entry)?))
     }
 }
 
@@ -90,6 +84,13 @@ impl UdfEntry<'_> {
         }
 
         filename.to_str().ok()
+    }
+
+    fn new(entry: NonNull<udf_dirent_s>) -> Self {
+        Self {
+            entry,
+            _phantom: PhantomData,
+        }
     }
 }
 
