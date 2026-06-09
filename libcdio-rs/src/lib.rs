@@ -24,5 +24,5 @@ pub mod mmc;
 #[cfg(feature = "udf")]
 pub mod udf;
 
-#[cfg(feature = "iso9660")]
+#[cfg(any(feature = "iso9660", feature = "udf"))]
 pub use time;

@@ -20,6 +20,7 @@
 use std::{marker::PhantomData, ptr::NonNull};
 
 use libcdio_sys::udf_dirent_s;
+use time::OffsetDateTime;
 
 use crate::udf::Udf;
 
@@ -57,6 +58,20 @@ impl Udf {
     }
 }
 
+impl UdfEntry<'_> {
+    /// Return the modification time.
+    /// Returns `None` in case the value is invalid.
+    pub fn modify_time(&self) -> Option<OffsetDateTime> {
+        // SAFETY: Returns -1 in case the value is invalid, checked immediately below
+        let time = unsafe { libcdio_sys::udf_get_modification_time(self.entry.as_ptr()) };
+        if time == -1 {
+            return None;
+        }
+
+        OffsetDateTime::from_unix_timestamp(time).ok()
+    }
+}
+
 impl Drop for UdfEntry<'_> {
     fn drop(&mut self) {
         // SAFETY: Infallible function
@@ -66,6 +81,8 @@ impl Drop for UdfEntry<'_> {
 
 #[cfg(test)]
 mod tests {
+    use time::macros::datetime;
+
     use crate::udf::tests::test_udf_file;
 
     use super::*;
@@ -80,5 +97,12 @@ mod tests {
     fn root_from_partition() {
         let udf = Udf::new(test_udf_file()).unwrap();
         udf.root_from_partition(0).unwrap();
+    }
+
+    #[test]
+    fn modify_time() {
+        let udf = Udf::new(test_udf_file()).unwrap();
+        let modify_time = udf.root().unwrap().modify_time().unwrap();
+        assert_eq!(modify_time, datetime!(2014-02-20 1:26:20.0 +00:00:00));
     }
 }
