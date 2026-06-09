@@ -25,4 +25,7 @@ pub mod mmc;
 pub mod udf;
 
 #[cfg(any(feature = "iso9660", feature = "udf"))]
+pub use file_mode;
+
+#[cfg(any(feature = "iso9660", feature = "udf"))]
 pub use time;
