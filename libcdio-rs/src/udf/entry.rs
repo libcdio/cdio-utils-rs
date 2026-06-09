@@ -96,6 +96,15 @@ impl UdfEntry<'_> {
         NonNull::new(next_entry).map(Self::new)
     }
 
+    /// Open `self` and return the first entry.
+    /// Returns `None` if `self` is not a directory, or on error.
+    // TODO: Add unit test, need a UDF file with directory that works with libcdio
+    pub fn open_dir(&self) -> Option<Self> {
+        let sub_entry = unsafe { libcdio_sys::udf_opendir(self.entry.as_ptr()) };
+
+        Some(Self::new(NonNull::new(sub_entry)?))
+    }
+
     fn new(entry: NonNull<udf_dirent_s>) -> Self {
         Self {
             entry,
