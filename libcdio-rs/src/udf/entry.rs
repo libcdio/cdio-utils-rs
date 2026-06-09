@@ -110,6 +110,12 @@ impl UdfEntry<'_> {
         unsafe { libcdio_sys::udf_is_dir(self.entry.as_ptr()) }
     }
 
+    /// Return the file length.
+    pub fn file_length(&self) -> u64 {
+        // SAFETY: entry is not null, making this function infallible
+        unsafe { libcdio_sys::udf_get_file_length(self.entry.as_ptr()) }
+    }
+
     fn new(entry: NonNull<udf_dirent_s>) -> Self {
         Self {
             entry,
@@ -175,5 +181,13 @@ mod tests {
         let udf = Udf::new(test_udf_file()).unwrap();
         let root = udf.root().unwrap();
         assert!(root.is_dir());
+    }
+
+    #[test]
+    fn file_length() {
+        let udf = Udf::new(test_udf_file()).unwrap();
+        let root = udf.root().unwrap();
+        let file = root.next().unwrap().next().unwrap();
+        assert_eq!(file.file_length(), 10);
     }
 }
