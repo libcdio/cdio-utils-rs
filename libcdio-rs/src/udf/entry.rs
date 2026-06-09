@@ -17,7 +17,7 @@
 
 //! UDF file/directory entry.
 
-use std::{marker::PhantomData, ptr::NonNull};
+use std::{ffi::CStr, marker::PhantomData, ptr::NonNull};
 
 use libcdio_sys::udf_dirent_s;
 use time::OffsetDateTime;
@@ -70,6 +70,27 @@ impl UdfEntry<'_> {
 
         OffsetDateTime::from_unix_timestamp(time).ok()
     }
+
+    /// Return the filename.
+    /// `None` is returned if the filename has non UTF-8 characters, or on an unexpected error.
+    pub fn filename(&self) -> Option<&str> {
+        const CURRENT_DIR_FILENAME: &str = ".";
+
+        // SAFETY: self.entry is non null, therefore this method should not return null
+        let filename = unsafe { libcdio_sys::udf_get_filename(self.entry.as_ptr()) };
+        if filename.is_null() {
+            tracing::error!("udf_get_filename() returned an unexpected NULL");
+            return None;
+        }
+        let filename = unsafe { CStr::from_ptr(filename) };
+        // filename returns an empty string after opening the root directory.
+        // this probably represents "."
+        if filename.is_empty() {
+            return Some(CURRENT_DIR_FILENAME);
+        }
+
+        filename.to_str().ok()
+    }
 }
 
 impl Drop for UdfEntry<'_> {
@@ -104,5 +125,12 @@ mod tests {
         let udf = Udf::new(test_udf_file()).unwrap();
         let modify_time = udf.root().unwrap().modify_time().unwrap();
         assert_eq!(modify_time, datetime!(2014-02-20 1:26:20.0 +00:00:00));
+    }
+
+    #[test]
+    fn filename() {
+        let udf = Udf::new(test_udf_file()).unwrap();
+        let root = udf.root().unwrap();
+        assert_eq!(root.filename().unwrap(), "/");
     }
 }
