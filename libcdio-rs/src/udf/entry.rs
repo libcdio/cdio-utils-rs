@@ -28,6 +28,10 @@ use crate::udf::Udf;
 /// A UDF file/directory entry.
 pub struct UdfEntry<'a> {
     entry: NonNull<udf_dirent_s>,
+    /// The Group ID of the entry
+    pub gid: u32,
+    /// The User ID of the entry
+    pub uid: u32,
     // udf_dirent_s internally holds references to udf_t
     // thus it is valid for only as long as its parent
     // udf_t is
@@ -129,8 +133,11 @@ impl UdfEntry<'_> {
     }
 
     fn new(entry: NonNull<udf_dirent_s>) -> Self {
+        let uid = unsafe { (*entry.as_ptr()).fe.uid };
+
         Self {
             entry,
+            uid: u32::from_le(uid),
             _phantom: PhantomData,
         }
     }
@@ -145,11 +152,17 @@ impl Drop for UdfEntry<'_> {
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+
     use time::macros::datetime;
 
     use crate::udf::tests::test_udf_file;
 
     use super::*;
+
+    fn test_udf_file1() -> &'static Path {
+        Path::new("../test-data/udf1.iso")
+    }
 
     #[test]
     fn root() {
@@ -218,5 +231,13 @@ mod tests {
         let root = udf.root().unwrap();
         let entry = root.next().unwrap().next().unwrap();
         assert_eq!(entry.link_count(), 1);
+    }
+
+    #[test]
+    fn fields() {
+        let udf = Udf::new(test_udf_file1()).unwrap();
+        let root = udf.root().unwrap();
+        let entry = root.next().unwrap().next().unwrap();
+        assert_eq!(entry.uid, 2000);
     }
 }
