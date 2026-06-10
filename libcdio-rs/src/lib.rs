@@ -15,6 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with libcdio-rs. If not, see <https://www.gnu.org/licenses/>.
 
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
 mod cdio;
 pub mod device;
 
