@@ -17,7 +17,9 @@
 
 //! UDF filesystem.
 
-pub mod entry;
+mod entry;
+
+pub use entry::UdfEntry;
 
 use std::{ffi::CString, path::Path, ptr::NonNull};
 

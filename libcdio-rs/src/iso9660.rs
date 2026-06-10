@@ -18,9 +18,14 @@
 //! ISO 9660 filesystem related routines.
 
 mod ds;
-pub mod rock;
-pub mod stat;
+mod rock;
+mod stat;
 pub mod xa;
+
+pub use rock::RockRidge;
+pub use stat::Iso9660Stat;
+#[doc(inline)]
+pub use xa::CdRomXa;
 
 use std::{
     ffi::{CStr, CString, c_char},
