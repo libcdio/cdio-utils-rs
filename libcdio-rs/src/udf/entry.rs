@@ -134,9 +134,11 @@ impl UdfEntry<'_> {
 
     fn new(entry: NonNull<udf_dirent_s>) -> Self {
         let uid = unsafe { (*entry.as_ptr()).fe.uid };
+        let gid = unsafe { (*entry.as_ptr()).fe.gid };
 
         Self {
             entry,
+            gid: u32::from_le(gid),
             uid: u32::from_le(uid),
             _phantom: PhantomData,
         }
@@ -239,5 +241,6 @@ mod tests {
         let root = udf.root().unwrap();
         let entry = root.next().unwrap().next().unwrap();
         assert_eq!(entry.uid, 2000);
+        assert_eq!(entry.gid, 3000);
     }
 }
