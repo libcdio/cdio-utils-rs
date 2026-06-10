@@ -1,0 +1,31 @@
+[package]
+name = "libcdio-rs"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+categories = ["api-bindings", "multimedia::audio", "filesystem", "hardware-support"]
+description = "Safe abstraction library over libcdio"
+keywords = ["cd", "scsi", "iso9660", "udf"]
+license.workspace = true
+readme = "README.md"
+repository.workspace = true
+
+[features]
+iso9660 = ["libcdio-sys/iso9660", "dep:file-mode", "dep:time"]
+udf = ["libcdio-sys/udf", "dep:file-mode", "dep:time"]
+
+[dependencies]
+bitflags = "2.11.1"
+file-mode = { version = "0.1.2", optional = true }
+libcdio-sys.workspace = true
+num_enum = "0.7.6"
+time = { optional = true, workspace = true }
+tracing.workspace = true
+
+[dev-dependencies]
+test-log.workspace = true
+time = { workspace = true, features = ["macros"] }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

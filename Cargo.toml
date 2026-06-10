@@ -1,5 +1,6 @@
 [workspace]
 resolver = "3"
+members = ["libcdio-rs"]
 
 [workspace.package]
 authors = ["Shiva Kiran Koninty <shiva@skran.xyz>"]
@@ -11,3 +12,6 @@ repository = "https://github.com/libcdio/cdio-utils-rs"
 
 [workspace.dependencies]
 libcdio-sys = { version = "2.0.0", default-features = false }
+test-log = { version = "0.2.20", features = ["trace"] }
+time = "0.3.47"
+tracing = { version = "0.1.44", default-features = false, features = ["log", "std"] }
