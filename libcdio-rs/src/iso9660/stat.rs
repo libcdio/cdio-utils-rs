@@ -24,8 +24,9 @@ use std::{
 };
 
 use libcdio_sys::{iso9660_stat_s, iso9660_stat_s__STAT_DIR};
+use time::OffsetDateTime;
 
-use crate::iso9660::{Iso9660, JolietLevel, ds};
+use crate::iso9660::{Iso9660, JolietLevel, ds, util};
 
 /// ISO 9660 file/directory metadata.
 pub struct Iso9660Stat {
@@ -125,6 +126,13 @@ impl Iso9660Stat {
     /// Returns `true` if stat is a directory.
     pub fn is_dir(&self) -> bool {
         unsafe { (*self.stat.as_ptr()).type_ == iso9660_stat_s__STAT_DIR }
+    }
+
+    /// Returns the timestamp on the entry.
+    /// `None` if the timestamp is invalid.
+    pub fn timestamp(&self) -> Option<OffsetDateTime> {
+        let tm = unsafe { (*self.stat.as_ptr()).tm };
+        util::convert_tm(tm).ok()
     }
 }
 
