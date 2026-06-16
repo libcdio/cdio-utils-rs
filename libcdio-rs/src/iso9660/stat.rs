@@ -23,7 +23,7 @@ use std::{
     ptr::NonNull,
 };
 
-use libcdio_sys::iso9660_stat_s;
+use libcdio_sys::{iso9660_stat_s, iso9660_stat_s__STAT_DIR};
 
 use crate::iso9660::{Iso9660, JolietLevel, ds};
 
@@ -121,6 +121,11 @@ impl Iso9660Stat {
     pub fn lsn(&self) -> i32 {
         unsafe { (*self.stat.as_ptr()).lsn }
     }
+
+    /// Returns `true` if stat is a directory.
+    pub fn is_dir(&self) -> bool {
+        unsafe { (*self.stat.as_ptr()).type_ == iso9660_stat_s__STAT_DIR }
+    }
 }
 
 impl Drop for Iso9660Stat {
@@ -186,5 +191,15 @@ mod tests {
         let iso = Iso9660::new(test_rockridge_file()).unwrap();
         let entry = iso.stat(Path::new("/COPYING")).unwrap();
         assert_eq!(entry.lsn(), 27);
+    }
+
+    #[test]
+    fn is_dir() {
+        let iso = Iso9660::new(test_rockridge_file()).unwrap();
+        let file = iso.stat(Path::new("/COPYING")).unwrap();
+        assert!(!file.is_dir());
+
+        let dir = iso.stat(Path::new("/copy")).unwrap();
+        assert!(dir.is_dir());
     }
 }
