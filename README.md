@@ -38,6 +38,12 @@ To run ignored tests, which require some extra setup:
 cargo test -- --include-ignored
 ```
 
+### Run the executables
+For example, to run the `iso-info` executable:
+```sh
+cargo run --bin iso-info -- ./test-data/rock-ridge.iso
+```
+
 ### Use the provided Git Hooks
 These automatically perform lint and formatting checks:
 ```sh
