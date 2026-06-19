@@ -26,18 +26,19 @@ use std::{
 use libcdio_sys::{iso9660_stat_s, iso9660_stat_s__STAT_DIR};
 use time::OffsetDateTime;
 
-use crate::iso9660::{Iso9660, JolietLevel, ds, util};
+use crate::iso9660::{Iso9660, ds, util};
 
 /// ISO 9660 file/directory entry.
-pub struct Iso9660Entry {
+pub struct Iso9660Entry<'a> {
+    /// The parent ISO 9660 object
+    pub(crate) iso: &'a Iso9660,
     pub(crate) stat: NonNull<iso9660_stat_s>,
-    pub(crate) joliet_level: Option<JolietLevel>,
 }
 
 impl Iso9660 {
     /// Read directory at `path` and return a list of entries.
     /// Returns `None` on error.
-    pub fn read_dir(&self, path: &Path) -> Option<Vec<Iso9660Entry>> {
+    pub fn read_dir(&self, path: &Path) -> Option<Vec<Iso9660Entry<'_>>> {
         let path = CString::new(path.to_str()?).ok()?;
         let dirlist = unsafe { libcdio_sys::iso9660_ifs_readdir(self.ptr.as_ptr(), path.as_ptr()) };
         if dirlist.is_null() {
@@ -49,8 +50,8 @@ impl Iso9660 {
             .into_iter()
             .filter_map(|entry| {
                 Some(Iso9660Entry {
+                    iso: self,
                     stat: NonNull::new(entry.cast())?,
-                    joliet_level: self.joliet_level(),
                 })
             })
             .collect();
@@ -58,19 +59,19 @@ impl Iso9660 {
         Some(dirlist)
     }
 
-    /// Return entry at `path`. `None` is returned on error.
-    pub fn entry(&self, path: &Path) -> Option<Iso9660Entry> {
+    /// Return entry for `path`. `None` is returned on error.
+    pub fn entry(&self, path: &Path) -> Option<Iso9660Entry<'_>> {
         let path = CString::new(path.to_str()?).ok()?;
         let stat = unsafe { libcdio_sys::iso9660_ifs_stat(self.ptr.as_ptr(), path.as_ptr()) };
 
         Some(Iso9660Entry {
+            iso: self,
             stat: NonNull::new(stat)?,
-            joliet_level: self.joliet_level(),
         })
     }
 }
 
-impl Iso9660Entry {
+impl Iso9660Entry<'_> {
     /// Returns the raw filename of the entry.
     /// Returns `None` if the filename has non UTF-8 characters or on error.
     pub fn filename_raw(&self) -> Option<&str> {
@@ -99,7 +100,7 @@ impl Iso9660Entry {
 
         let filename = unsafe { CStr::from_ptr(filename) };
         let mut translated_name = vec![0; filename.count_bytes() + 1];
-        let joliet_level = self.joliet_level.map(u8::from).unwrap_or(0);
+        let joliet_level = self.iso.joliet_level().map(u8::from).unwrap_or(0);
 
         let len = unsafe {
             libcdio_sys::iso9660_name_translate_ext(
@@ -136,7 +137,7 @@ impl Iso9660Entry {
     }
 }
 
-impl Drop for Iso9660Entry {
+impl Drop for Iso9660Entry<'_> {
     fn drop(&mut self) {
         unsafe { libcdio_sys::iso9660_stat_free(self.stat.as_ptr()) }
     }
