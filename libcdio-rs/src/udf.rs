@@ -33,6 +33,8 @@ pub struct Udf {
 }
 
 impl Udf {
+    pub const BLOCK_SIZE: usize = 2048;
+
     /// Open a UDF file. `None` is returned on error.
     pub fn new(path: &Path) -> Option<Self> {
         logging::init_logger();

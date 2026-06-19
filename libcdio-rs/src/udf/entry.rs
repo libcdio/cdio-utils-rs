@@ -17,7 +17,7 @@
 
 //! UDF file/directory entry.
 
-use std::{ffi::CStr, marker::PhantomData, ptr::NonNull};
+use std::{ffi::CStr, io, marker::PhantomData, ptr::NonNull};
 
 use file_mode::Mode;
 use libcdio_sys::udf_dirent_s;
@@ -36,6 +36,15 @@ pub struct UdfEntry<'a> {
     // thus it is valid for only as long as its parent
     // udf_t is
     _phantom: PhantomData<&'a udf_dirent_s>,
+}
+
+/// A type that implements [`io::Read`], to allow for reading the
+/// file corresponding to a [`UdfEntry`]
+// This is NOT thread safe, as udf_dirent_s internally holds
+// the current position
+pub struct UdfEntryReader<'a> {
+    bytes_read: usize,
+    entry: &'a UdfEntry<'a>,
 }
 
 impl Udf {
@@ -132,6 +141,16 @@ impl UdfEntry<'_> {
         unsafe { libcdio_sys::udf_get_link_count(self.entry.as_ptr()) }
     }
 
+    /// Returns a type that implements [`io::Read`], to allow for reading the
+    /// file entry corresponding to an [`Iso9660Stat`]
+    /// Returns `None` on error.
+    pub fn reader(&self) -> UdfEntryReader<'_> {
+        UdfEntryReader {
+            bytes_read: 0,
+            entry: self,
+        }
+    }
+
     fn new(entry: NonNull<udf_dirent_s>) -> Self {
         let uid = unsafe { (*entry.as_ptr()).fe.uid };
         let gid = unsafe { (*entry.as_ptr()).fe.gid };
@@ -145,6 +164,26 @@ impl UdfEntry<'_> {
     }
 }
 
+impl UdfEntryReader<'_> {
+    /// Sets the internal position value that's stored the FFI boundary.
+    // As of libcdio v2.3.0, the internal value i.e
+    // udf_dirent_s.p_udf->i_position is only used by its provided read and
+    // seek methods.
+    // Therefore, prevent state leakage between independent instances of
+    // Self in the corresponding rust methods by resetting the internal
+    // position to zero in the corresponding rust methods.
+    fn set_position(&mut self, block_num: usize) {
+        // SAFETY: UdfEntryReader and UdfEntry are not marked
+        // as thread safe
+        let _ = unsafe {
+            libcdio_sys::udf_setpos(
+                self.entry.entry.as_ptr(),
+                block_num as i64 * Udf::BLOCK_SIZE as i64,
+            )
+        };
+    }
+}
+
 impl Drop for UdfEntry<'_> {
     fn drop(&mut self) {
         // SAFETY: Infallible function
@@ -152,9 +191,40 @@ impl Drop for UdfEntry<'_> {
     }
 }
 
+impl io::Read for UdfEntryReader<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let file_size = self.entry.file_length() as usize;
+        let mut buf_read = 0;
+        // prevent state leakage. refer method doc for more.
+        self.set_position(0);
+        while self.bytes_read < file_size && buf_read < buf.len() {
+            let block_num = self.bytes_read / Udf::BLOCK_SIZE;
+            self.set_position(block_num);
+            let mut block = [0_u8; Udf::BLOCK_SIZE];
+            let ret = unsafe {
+                libcdio_sys::udf_read_block(self.entry.entry.as_ptr(), block.as_mut_ptr().cast(), 1)
+            };
+            if ret != block.len().cast_signed() {
+                return Err(io::Error::other(format!(
+                    "error reading udf block number: {block_num}",
+                )));
+            }
+            let block_start = self.bytes_read % block.len();
+            let buf_rem = buf.len() - buf_read;
+            let block_rem = (block.len() - block_start).min(file_size - self.bytes_read);
+            let len = buf_rem.min(block_rem);
+            buf[buf_read..buf_read + len].copy_from_slice(&block[block_start..block_start + len]);
+            buf_read += len;
+            self.bytes_read += len;
+        }
+
+        Ok(buf_read)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
+    use std::{io::Read, path::Path};
 
     use time::macros::datetime;
 
@@ -242,5 +312,25 @@ mod tests {
         let entry = root.next().unwrap().next().unwrap();
         assert_eq!(entry.uid, 2000);
         assert_eq!(entry.gid, 3000);
+    }
+
+    #[test]
+    fn read() {
+        let udf = Udf::new(test_udf_file1()).unwrap();
+        let root = udf.root().unwrap();
+        // /licenses
+        let entry = root.next().unwrap().next().unwrap();
+        // /licenses/.
+        let entry = entry.open_dir().unwrap().next().unwrap();
+        // /licenses/COPYING
+        let entry = entry.next().unwrap();
+
+        let mut reader = entry.reader();
+        let mut contents = String::new();
+        let bytes_read = reader.read_to_string(&mut contents).unwrap();
+
+        let gpl = std::fs::read_to_string("../COPYING").unwrap();
+        assert_eq!(gpl.len(), bytes_read);
+        assert_eq!(gpl, contents);
     }
 }
