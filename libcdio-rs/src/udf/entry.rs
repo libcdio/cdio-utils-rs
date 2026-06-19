@@ -222,6 +222,20 @@ impl io::Read for UdfEntryReader<'_> {
     }
 }
 
+impl io::Seek for UdfEntryReader<'_> {
+    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+        self.bytes_read = match pos {
+            io::SeekFrom::Start(offset) => offset as usize,
+            io::SeekFrom::End(offset) => {
+                self.entry.file_length().saturating_add_signed(offset) as usize
+            }
+            io::SeekFrom::Current(offset) => self.bytes_read.saturating_add_signed(offset as isize),
+        };
+
+        Ok(self.bytes_read as u64)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::{io::Read, path::Path};
