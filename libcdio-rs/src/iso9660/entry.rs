@@ -19,6 +19,7 @@
 
 use std::{
     ffi::{CStr, CString},
+    io,
     path::Path,
     ptr::NonNull,
 };
@@ -33,6 +34,12 @@ pub struct Iso9660Entry<'a> {
     /// The parent ISO 9660 object
     pub(crate) iso: &'a Iso9660,
     pub(crate) stat: NonNull<iso9660_stat_s>,
+}
+
+/// A type that implements [`io::Read`], for reading an ISO9660 entry.
+pub struct Iso9660EntryReader<'a> {
+    bytes_read: usize,
+    entry: &'a Iso9660Entry<'a>,
 }
 
 impl Iso9660 {
@@ -135,6 +142,15 @@ impl Iso9660Entry<'_> {
         let tm = unsafe { (*self.stat.as_ptr()).tm };
         util::convert_tm(tm).ok()
     }
+
+    /// A type that implements [`io::Read`], for reading an ISO9660 entry.
+    /// Returns `None` on error.
+    pub fn reader(&self) -> Iso9660EntryReader<'_> {
+        Iso9660EntryReader {
+            bytes_read: 0,
+            entry: self,
+        }
+    }
 }
 
 impl Drop for Iso9660Entry<'_> {
@@ -143,9 +159,48 @@ impl Drop for Iso9660Entry<'_> {
     }
 }
 
+impl io::Read for Iso9660EntryReader<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let file_size = self.entry.total_size() as usize;
+        let mut buf_read = 0;
+        while self.bytes_read < file_size && buf_read < buf.len() {
+            let lsn = self.entry.lsn() + (self.bytes_read / Iso9660::BLOCK_SIZE) as i32;
+            let mut block = [0_u8; Iso9660::BLOCK_SIZE];
+            let ret = unsafe {
+                libcdio_sys::iso9660_iso_seek_read(
+                    self.entry.iso.ptr.as_ptr(),
+                    block.as_mut_ptr().cast(),
+                    lsn,
+                    1,
+                )
+            };
+            // the returned value is either BLOCK_SIZE or zero on error, thus
+            // excess bytes past the last read must be handled
+            if ret != block.len() as i64 {
+                return Err(io::Error::other(format!(
+                    "error reading block at lsn: {lsn}",
+                )));
+            }
+
+            // offset start to skip the first bytes given out during
+            // a previous partial read() call
+            let block_start = self.bytes_read % block.len();
+            let buf_rem = buf.len() - buf_read;
+            // skip out the excess bytes past file_size using .min()
+            let block_rem = (block.len() - block_start).min(file_size - self.bytes_read);
+            let len = buf_rem.min(block_rem);
+            buf[buf_read..buf_read + len].copy_from_slice(&block[block_start..block_start + len]);
+            buf_read += len;
+            self.bytes_read += len;
+        }
+
+        Ok(buf_read)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
+    use std::{io::Read, path::Path};
 
     use crate::iso9660::{
         Iso9660,
@@ -210,5 +265,18 @@ mod tests {
 
         let dir = iso.entry(Path::new("/copy")).unwrap();
         assert!(dir.is_dir());
+    }
+
+    #[test]
+    fn read() {
+        let iso = Iso9660::new(Path::new("../test-data/xa.iso")).unwrap();
+        let entry = iso.entry(Path::new("copying")).unwrap();
+        let gpl = std::fs::read_to_string("../COPYING").unwrap();
+        let mut reader = entry.reader();
+
+        let mut result = String::new();
+        let retval = reader.read_to_string(&mut result).unwrap();
+        assert_eq!(gpl.len(), retval);
+        assert_eq!(gpl, result);
     }
 }
