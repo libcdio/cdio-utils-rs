@@ -17,7 +17,13 @@
 
 //! UDF file/directory entry.
 
-use std::{ffi::CStr, io, marker::PhantomData, ptr::NonNull};
+use std::{
+    ffi::{CStr, CString},
+    io,
+    marker::PhantomData,
+    path::Path,
+    ptr::NonNull,
+};
 
 use file_mode::Mode;
 use libcdio_sys::udf_dirent_s;
@@ -61,6 +67,15 @@ impl Udf {
     /// `None` is returned on error.
     pub fn root_from_partition(&self, partition: u16) -> Option<UdfEntry<'_>> {
         let entry = unsafe { libcdio_sys::udf_get_root(self.udf.as_ptr(), false, partition) };
+
+        Some(UdfEntry::new(NonNull::new(entry)?))
+    }
+
+    /// Return entry for `path`. `None` is returned on error.
+    pub fn entry(&self, path: &Path) -> Option<UdfEntry<'_>> {
+        let root = self.root()?;
+        let path = CString::new(path.to_str()?).ok()?;
+        let entry = unsafe { libcdio_sys::udf_fopen(root.entry.as_ptr(), path.as_ptr()) };
 
         Some(UdfEntry::new(NonNull::new(entry)?))
     }
@@ -346,5 +361,11 @@ mod tests {
         let gpl = std::fs::read_to_string("../COPYING").unwrap();
         assert_eq!(gpl.len(), bytes_read);
         assert_eq!(gpl, contents);
+    }
+
+    #[test]
+    fn entry() {
+        let udf = Udf::new(test_udf_file1()).unwrap();
+        udf.entry(Path::new("/licenses/COPYING.LESSER")).unwrap();
     }
 }
