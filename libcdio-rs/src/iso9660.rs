@@ -18,13 +18,13 @@
 //! ISO 9660 filesystem related routines.
 
 mod ds;
+mod entry;
 mod rock;
-mod stat;
 mod util;
 pub mod xa;
 
+pub use entry::Iso9660Entry;
 pub use rock::RockRidge;
-pub use stat::Iso9660Stat;
 #[doc(inline)]
 pub use xa::CdRomXa;
 

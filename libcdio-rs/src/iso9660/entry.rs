@@ -15,7 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with libcdio-rs. If not, see <https://www.gnu.org/licenses/>.
 
-//! ISO 9660 stat like object.
+//! ISO 9660 file/directory entry object.
 
 use std::{
     ffi::{CStr, CString},
@@ -28,28 +28,28 @@ use time::OffsetDateTime;
 
 use crate::iso9660::{Iso9660, JolietLevel, ds, util};
 
-/// ISO 9660 file/directory metadata.
-pub struct Iso9660Stat {
+/// ISO 9660 file/directory entry.
+pub struct Iso9660Entry {
     pub(crate) stat: NonNull<iso9660_stat_s>,
     pub(crate) joliet_level: Option<JolietLevel>,
 }
 
 impl Iso9660 {
-    /// Read directory at `path` and return a list of [`Iso9660Stat`].
+    /// Read directory at `path` and return a list of entries.
     /// Returns `None` on error.
-    pub fn read_dir(&self, path: &Path) -> Option<Vec<Iso9660Stat>> {
+    pub fn read_dir(&self, path: &Path) -> Option<Vec<Iso9660Entry>> {
         let path = CString::new(path.to_str()?).ok()?;
         let dirlist = unsafe { libcdio_sys::iso9660_ifs_readdir(self.ptr.as_ptr(), path.as_ptr()) };
         if dirlist.is_null() {
             return None;
         }
-        // SAFETY: dirlist is not null and the data will be owned by `Iso9660Stat`.
+        // SAFETY: dirlist is not null and the data will be owned by `Iso9660Entry`.
         let dirlist = unsafe { ds::cdiolist_to_vec(dirlist) };
         let dirlist = dirlist
             .into_iter()
-            .filter_map(|stat| {
-                Some(Iso9660Stat {
-                    stat: NonNull::new(stat.cast())?,
+            .filter_map(|entry| {
+                Some(Iso9660Entry {
+                    stat: NonNull::new(entry.cast())?,
                     joliet_level: self.joliet_level(),
                 })
             })
@@ -58,19 +58,19 @@ impl Iso9660 {
         Some(dirlist)
     }
 
-    /// Return stat for `path`. `None` is returned on error.
-    pub fn stat(&self, path: &Path) -> Option<Iso9660Stat> {
+    /// Return entry at `path`. `None` is returned on error.
+    pub fn entry(&self, path: &Path) -> Option<Iso9660Entry> {
         let path = CString::new(path.to_str()?).ok()?;
         let stat = unsafe { libcdio_sys::iso9660_ifs_stat(self.ptr.as_ptr(), path.as_ptr()) };
 
-        Some(Iso9660Stat {
+        Some(Iso9660Entry {
             stat: NonNull::new(stat)?,
             joliet_level: self.joliet_level(),
         })
     }
 }
 
-impl Iso9660Stat {
+impl Iso9660Entry {
     /// Returns the raw filename of the entry.
     /// Returns `None` if the filename has non UTF-8 characters or on error.
     pub fn filename_raw(&self) -> Option<&str> {
@@ -123,7 +123,7 @@ impl Iso9660Stat {
         unsafe { (*self.stat.as_ptr()).lsn }
     }
 
-    /// Returns `true` if stat is a directory.
+    /// Returns `true` if self is a directory.
     pub fn is_dir(&self) -> bool {
         unsafe { (*self.stat.as_ptr()).type_ == iso9660_stat_s__STAT_DIR }
     }
@@ -136,7 +136,7 @@ impl Iso9660Stat {
     }
 }
 
-impl Drop for Iso9660Stat {
+impl Drop for Iso9660Entry {
     fn drop(&mut self) {
         unsafe { libcdio_sys::iso9660_stat_free(self.stat.as_ptr()) }
     }
@@ -181,33 +181,33 @@ mod tests {
     }
 
     #[test]
-    fn stat() {
+    fn entry() {
         let iso = Iso9660::new(test_rockridge_file()).unwrap();
-        let stat = iso.stat(Path::new("/copy")).unwrap();
-        assert_eq!(stat.filename().unwrap(), "copy");
+        let entry = iso.entry(Path::new("/copy")).unwrap();
+        assert_eq!(entry.filename().unwrap(), "copy");
     }
 
     #[test]
     fn total_size() {
         let iso = Iso9660::new(test_rockridge_file()).unwrap();
-        let entry = iso.stat(Path::new("/COPYING")).unwrap();
+        let entry = iso.entry(Path::new("/COPYING")).unwrap();
         assert_eq!(entry.total_size(), 17992);
     }
 
     #[test]
     fn lsn() {
         let iso = Iso9660::new(test_rockridge_file()).unwrap();
-        let entry = iso.stat(Path::new("/COPYING")).unwrap();
+        let entry = iso.entry(Path::new("/COPYING")).unwrap();
         assert_eq!(entry.lsn(), 27);
     }
 
     #[test]
     fn is_dir() {
         let iso = Iso9660::new(test_rockridge_file()).unwrap();
-        let file = iso.stat(Path::new("/COPYING")).unwrap();
+        let file = iso.entry(Path::new("/COPYING")).unwrap();
         assert!(!file.is_dir());
 
-        let dir = iso.stat(Path::new("/copy")).unwrap();
+        let dir = iso.entry(Path::new("/copy")).unwrap();
         assert!(dir.is_dir());
     }
 }
