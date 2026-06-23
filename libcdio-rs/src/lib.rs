@@ -15,12 +15,32 @@
 // You should have received a copy of the GNU General Public License
 // along with libcdio-rs. If not, see <https://www.gnu.org/licenses/>.
 
-pub mod cdio;
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
+mod cdio;
 pub mod device;
+
 #[cfg(feature = "iso9660")]
 pub mod iso9660;
+
 mod logging;
 pub mod mmc;
 
-#[cfg(feature = "iso9660")]
+#[cfg(feature = "udf")]
+pub mod udf;
+
+#[cfg(any(feature = "iso9660", feature = "udf"))]
+pub use file_mode;
+
+#[cfg(any(feature = "iso9660", feature = "udf"))]
 pub use time;
+
+pub use crate::cdio::{Cdio, CdioBuilder};
+
+#[cfg(feature = "iso9660")]
+#[doc(inline)]
+pub use crate::iso9660::Iso9660;
+
+#[cfg(feature = "udf")]
+#[doc(inline)]
+pub use crate::udf::Udf;
