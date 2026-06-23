@@ -39,9 +39,9 @@ cargo test -- --include-ignored
 ```
 
 ### Run the executables
-For example, to run the `iso-info` executable:
+For example, to run the `iso-info` program:
 ```sh
-cargo run --bin iso-info -- ./test-data/rock-ridge.iso
+cargo run --bin iso-info-rs -- ./test-data/rock-ridge.iso
 ```
 
 ### Use the provided Git Hooks
