@@ -22,60 +22,9 @@
 
 use std::{ffi::CStr, mem::MaybeUninit};
 
-use libcdio_sys::{
-    cdio_hwinfo_t, driver_id_t, driver_id_t_DRIVER_AIX, driver_id_t_DRIVER_BINCUE,
-    driver_id_t_DRIVER_CDRDAO, driver_id_t_DRIVER_DEVICE, driver_id_t_DRIVER_FREEBSD,
-    driver_id_t_DRIVER_LINUX, driver_id_t_DRIVER_NETBSD, driver_id_t_DRIVER_NRG,
-    driver_id_t_DRIVER_OSX, driver_id_t_DRIVER_SOLARIS, driver_id_t_DRIVER_UNKNOWN,
-    driver_id_t_DRIVER_WIN32,
-};
-use num_enum::{IntoPrimitive, TryFromPrimitive};
+use libcdio_sys::{cdio_hwinfo_t, driver_id_t_DRIVER_DEVICE};
 
 use crate::cdio::Cdio;
-
-/// Represents a cdio driver.
-#[repr(u32)]
-#[non_exhaustive]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
-pub enum Driver {
-    /// Used as input when we don't care what kind of driver to use.
-    Unknown = driver_id_t_DRIVER_UNKNOWN,
-
-    /// AIX driver.
-    Aix = driver_id_t_DRIVER_AIX,
-
-    /// FreeBSD driver – includes CAM and ioctl access.
-    FreeBsd = driver_id_t_DRIVER_FREEBSD,
-
-    /// NetBSD driver.
-    NetBsd = driver_id_t_DRIVER_NETBSD,
-
-    /// GNU/Linux driver.
-    Linux = driver_id_t_DRIVER_LINUX,
-
-    /// Sun Solaris driver.
-    Solaris = driver_id_t_DRIVER_SOLARIS,
-
-    /// Apple macOS (formerly OS X) driver.
-    OsX = driver_id_t_DRIVER_OSX,
-
-    /// Microsoft Windows driver – includes ASPI and ioctl access.
-    Win32 = driver_id_t_DRIVER_WIN32,
-
-    /// cdrdao format CD image. Listed before `Bincue` so the code prefers
-    /// cdrdao over BIN/CUE when both exist.
-    Cdrdao = driver_id_t_DRIVER_CDRDAO,
-
-    /// CDRWIN BIN/CUE format CD image. Listed before `Nrg` so the code
-    /// prefers BIN/CUE over NRG when both exist.
-    BinCue = driver_id_t_DRIVER_BINCUE,
-
-    /// Nero NRG format CD image.
-    Nrg = driver_id_t_DRIVER_NRG,
-
-    /// A composite of the above drivers; should be used last.
-    Device = driver_id_t_DRIVER_DEVICE,
-}
 
 /// Hardware information returned by a cdio driver.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -108,18 +57,10 @@ impl Cdio {
         Some(default_device)
     }
 
-    /// Returns the currently used driver.
-    pub fn driver(&self) -> Driver {
-        let driver_id = unsafe { libcdio_sys::cdio_get_driver_id(self.cdio.as_ptr()) };
-
-        Driver::try_from(driver_id).expect("cdio->driver_id should be initialized and valid")
-    }
-
-    /// Returns a list of connected devices, per the driver in use.
-    /// # Returns
+    /// Returns a list of connected hardware devices.
     /// `None` is returned if the device list could not be fetched.
     pub fn devices(&self) -> Option<Vec<String>> {
-        let devices_pp = unsafe { libcdio_sys::cdio_get_devices(driver_id_t::from(self.driver())) };
+        let devices_pp = unsafe { libcdio_sys::cdio_get_devices(driver_id_t_DRIVER_DEVICE) };
         if devices_pp.is_null() {
             return None;
         }
@@ -172,46 +113,6 @@ impl Cdio {
     }
 }
 
-impl Driver {
-    /// Checks driver availability.
-    pub fn available(self) -> bool {
-        unsafe { libcdio_sys::cdio_have_driver(driver_id_t::from(self)) }
-    }
-
-    /// Returns the driver name.
-    pub fn name(self) -> &'static str {
-        let driver_name =
-            unsafe { libcdio_sys::cdio_get_driver_name_from_id(driver_id_t::from(self)) };
-
-        // SAFETY: driver_name is a static string, therefore valid
-        // and not null
-        let driver_name: &'static CStr = unsafe { CStr::from_ptr(driver_name) };
-
-        driver_name
-            .to_str()
-            .expect("driver names should be valid as they are hardcoded")
-    }
-
-    /// Returns a description of the driver.
-    pub fn description(self) -> &'static str {
-        let description = unsafe { libcdio_sys::cdio_driver_describe(driver_id_t::from(self)) };
-
-        // SAFETY: driver_description is a static string, therefore valid
-        // and not null
-        let description: &'static CStr = unsafe { CStr::from_ptr(description) };
-
-        description
-            .to_str()
-            .expect("driver descriptions should be valid as they are hardcoded")
-    }
-}
-
-impl std::fmt::Display for Driver {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.description())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::path::Path;
@@ -230,40 +131,10 @@ mod tests {
     }
 
     #[test]
-    fn driver() {
-        let cdio = Cdio::builder().source(test_cue_file()).build().unwrap();
-        assert_eq!(cdio.driver(), Driver::BinCue);
-    }
-
-    #[test]
-    fn driver_name() {
-        assert_eq!(Driver::Linux.name(), "GNU/Linux");
-        assert_eq!(Driver::OsX.name(), "macOS");
-    }
-
-    #[test]
-    fn driver_description() {
-        assert_eq!(
-            Driver::Linux.description(),
-            "GNU/Linux ioctl and MMC driver"
-        );
-        assert_eq!(Driver::OsX.description(), "Apple macOS driver");
-    }
-
-    #[test]
     #[ignore = "requires a cd/dvd drive"]
     fn devices() {
         let cdio = Cdio::new().unwrap();
         assert!(!cdio.devices().unwrap().is_empty());
-    }
-
-    #[test]
-    fn driver_available() {
-        assert!(Driver::BinCue.available());
-        assert!(
-            !Driver::Aix.available(),
-            "I didn't imagine someone'd run tests on AIX.."
-        );
     }
 
     #[test]

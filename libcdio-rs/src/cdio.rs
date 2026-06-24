@@ -24,9 +24,9 @@ use std::{
     sync::Mutex,
 };
 
-use libcdio_sys::{CdIo_t, driver_id_t};
+use libcdio_sys::{CdIo_t, driver_id_t, driver_id_t_DRIVER_UNKNOWN};
 
-use crate::{device::Driver, logging};
+use crate::logging;
 
 /// The Cdio type.
 pub struct Cdio {
@@ -36,7 +36,6 @@ pub struct Cdio {
 #[derive(Clone, Default)]
 pub struct CdioBuilder<'a> {
     source: Option<&'a Path>,
-    driver: Option<Driver>,
 }
 
 /// MAINTAINER NOTE:
@@ -56,16 +55,16 @@ impl Cdio {
         Self::open(None, None)
     }
 
-    fn open(source: Option<&CStr>, driver: Option<Driver>) -> Option<Self> {
+    fn open(source: Option<&CStr>, driver: Option<driver_id_t>) -> Option<Self> {
         logging::init_logger();
 
-        let driver = driver.unwrap_or(Driver::Unknown);
+        let driver = driver.unwrap_or(driver_id_t_DRIVER_UNKNOWN);
         let source = source.map(|src| src.as_ptr()).unwrap_or(ptr::null());
         let _lock = CDIO_LAST_DRIVER_LOCK.lock().unwrap();
 
         // SAFETY: This method invokes cdio_init(), which modifies a static variable.
         // CDIO_LAST_DRIVER_LOCK is held to prevent data races.
-        let cdio = unsafe { libcdio_sys::cdio_open(source, driver_id_t::from(driver)) };
+        let cdio = unsafe { libcdio_sys::cdio_open(source, driver) };
 
         Some(Self {
             cdio: NonNull::new(cdio)?,
@@ -84,14 +83,6 @@ impl<'a> CdioBuilder<'a> {
         self
     }
 
-    /// The driver to use.
-    /// This is determined automatically if the source is provided.
-    /// Therefore, only use this if you want to override it.
-    pub fn driver(mut self, driver: Driver) -> Self {
-        self.driver = Some(driver);
-        self
-    }
-
     /// Build the Cdio type with the set params.
     /// # Returns
     /// `None` if the `source` could not be read from,
@@ -102,7 +93,7 @@ impl<'a> CdioBuilder<'a> {
             .and_then(|src| src.to_str())
             .and_then(|src| CString::new(src).ok());
 
-        Cdio::open(source.as_deref(), self.driver)
+        Cdio::open(source.as_deref(), None)
     }
 }
 
