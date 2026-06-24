@@ -17,7 +17,11 @@
 
 //! Routines related to CD/DVD drives.
 
-use std::{ffi::CStr, mem::MaybeUninit};
+use std::{
+    ffi::{CStr, OsString},
+    mem::MaybeUninit,
+    path::PathBuf,
+};
 
 use displaydoc::Display;
 use libcdio_sys::cdio_hwinfo_t;
@@ -31,6 +35,35 @@ pub struct Drive {
 }
 
 impl Drive {
+    /// Get a list of connected drives.
+    pub fn drives() -> Vec<PathBuf> {
+        let drive_list = unsafe { libcdio_sys::cdio_get_devices(Cdio::DEVICE_DRIVER) };
+        if drive_list.is_null() {
+            return vec![];
+        }
+
+        let mut drives = Vec::new();
+        let mut ptr = drive_list;
+        // SAFETY: The device list is NULL terminated, therefore safe to
+        // dereference till NULL is reached
+        while let drive = unsafe { *ptr }
+            && !drive.is_null()
+        {
+            // SAFETY: null check performed; the value represents a path, thus an os string
+            drives.push(PathBuf::from(unsafe {
+                OsString::from_encoded_bytes_unchecked(CStr::from_ptr(drive).to_bytes().to_vec())
+            }));
+            ptr = unsafe { ptr.offset(1) };
+        }
+
+        // SAFETY: drive_list has been cloned above, thus safe to free
+        unsafe {
+            libcdio_sys::cdio_free_device_list(drive_list);
+        }
+
+        drives
+    }
+
     /// Use a default connected drive.
     ///
     /// # Errors
@@ -39,36 +72,6 @@ impl Drive {
         Cdio::new(None, Cdio::DEVICE_DRIVER)
             .ok_or(DriveNotFoundError)
             .map(|cdio| Self { cdio })
-    }
-
-    /// Returns a list of connected hardware devices.
-    /// `None` is returned if the device list could not be fetched.
-    pub fn devices(&self) -> Option<Vec<String>> {
-        let devices_pp = unsafe { libcdio_sys::cdio_get_devices(Cdio::DEVICE_DRIVER) };
-        if devices_pp.is_null() {
-            return None;
-        }
-
-        let mut devices = Vec::new();
-        let mut devices_pp1 = devices_pp;
-        // SAFETY: The device list is NULL terminated, therefore safe to
-        // dereference till NULL is reached
-        while let device = unsafe { *devices_pp1 }
-            && !device.is_null()
-        {
-            // SAFETY: device is not null and should be a valid string
-            let device = unsafe { CStr::from_ptr(device) };
-            devices.push(device.to_string_lossy().to_string());
-            devices_pp1 = unsafe { devices_pp1.offset(1) };
-        }
-
-        // SAFETY: Device list is no has been duplicated above and is
-        // not needed anymore
-        unsafe {
-            libcdio_sys::cdio_free_device_list(devices_pp);
-        }
-
-        Some(devices)
     }
 
     /// Returns hardware information of the drive.
@@ -124,9 +127,8 @@ mod tests {
 
     #[test]
     #[ignore = "requires a disc drive"]
-    fn devices() {
-        let drive = Drive::new().unwrap();
-        assert!(!drive.devices().unwrap().is_empty());
+    fn drives() {
+        assert!(!Drive::drives().is_empty());
     }
 
     #[test]
