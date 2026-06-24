@@ -20,7 +20,7 @@
 use std::{ffi::CStr, mem::MaybeUninit};
 
 use displaydoc::Display;
-use libcdio_sys::{cdio_hwinfo_t, driver_id_t_DRIVER_DEVICE};
+use libcdio_sys::cdio_hwinfo_t;
 use thiserror::Error;
 
 use crate::cdio::Cdio;
@@ -36,7 +36,7 @@ impl Drive {
     /// # Errors
     /// If there are no drives connected, or the drive could not be opened.
     pub fn new() -> Result<Self, DriveNotFoundError> {
-        Cdio::open(None, Some(driver_id_t_DRIVER_DEVICE))
+        Cdio::new(None, Cdio::DEVICE_DRIVER)
             .ok_or(DriveNotFoundError)
             .map(|cdio| Self { cdio })
     }
@@ -66,7 +66,7 @@ impl Drive {
     /// Returns a list of connected hardware devices.
     /// `None` is returned if the device list could not be fetched.
     pub fn devices(&self) -> Option<Vec<String>> {
-        let devices_pp = unsafe { libcdio_sys::cdio_get_devices(driver_id_t_DRIVER_DEVICE) };
+        let devices_pp = unsafe { libcdio_sys::cdio_get_devices(Cdio::DEVICE_DRIVER) };
         if devices_pp.is_null() {
             return None;
         }

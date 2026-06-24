@@ -15,62 +15,39 @@
 // You should have received a copy of the GNU General Public License
 // along with libcdio-rs. If not, see <https://www.gnu.org/licenses/>.
 
-//! The main Cdio type.
-
 use std::{
-    ffi::{CStr, CString},
+    ffi::{CStr, c_char},
     ops::Deref,
-    path::Path,
     ptr::{self, NonNull},
     sync::Mutex,
 };
 
-use libcdio_sys::{CdIo_t, driver_id_t, driver_id_t_DRIVER_UNKNOWN};
+use libcdio_sys::{CdIo_t, driver_id_t, driver_id_t_DRIVER_DEVICE};
 
 use crate::logging;
 
 /// The Cdio type.
-pub struct Cdio {
+pub(crate) struct Cdio {
     pub(crate) cdio: NonNull<CdIo_t>,
 }
 
-#[derive(Clone, Default)]
-pub struct CdioBuilder<'a> {
-    source: Option<&'a Path>,
-}
-
-/// MAINTAINER NOTE:
-/// A lock guarding a private static named `CdIo_last_driver`. It must be held
-/// before invoking any libcdio methods that modify this value.
-/// As of libcdio v2.3.0, such methods are `cdio_init()` and `cdio_destroy()`.
-static CDIO_LAST_DRIVER_LOCK: Mutex<()> = Mutex::new(());
-
 impl Cdio {
-    pub fn builder<'a>() -> CdioBuilder<'a> {
-        CdioBuilder::new()
+    /// Create a new Cdio object with the given parameters.
+    pub(crate) fn new(device: Option<&CStr>, driver: driver_id_t) -> Option<Self> {
+        let source = device.map(|s| s.as_ptr()).unwrap_or(ptr::null());
+        NonNull::new(Self::open(source, driver)).map(|cdio| Self { cdio })
     }
 
-    /// Uses the OS driver and a default device. Returns `None` if a default
-    /// device could not be found.
-    pub fn new() -> Option<Self> {
-        Self::open(None, None)
-    }
-
-    pub(crate) fn open(source: Option<&CStr>, driver: Option<driver_id_t>) -> Option<Self> {
+    fn open(source: *const c_char, driver: driver_id_t) -> *mut CdIo_t {
         logging::init_logger();
 
-        let driver = driver.unwrap_or(driver_id_t_DRIVER_UNKNOWN);
-        let source = source.map(|src| src.as_ptr()).unwrap_or(ptr::null());
-        let _lock = CDIO_LAST_DRIVER_LOCK.lock().unwrap();
-
-        // SAFETY: This method invokes cdio_init(), which modifies a static variable.
+        // SAFETY: This invokes cdio_init(), which mutates a static variable.
         // CDIO_LAST_DRIVER_LOCK is held to prevent data races.
-        let cdio = unsafe { libcdio_sys::cdio_open(source, driver) };
-
-        Some(Self {
-            cdio: NonNull::new(cdio)?,
-        })
+        let _lock = CDIO_LAST_DRIVER_LOCK.lock().unwrap();
+        unsafe { libcdio_sys::cdio_open(source, driver) }
     }
+
+    pub(crate) const DEVICE_DRIVER: driver_id_t = driver_id_t_DRIVER_DEVICE;
 }
 
 impl Deref for Cdio {
@@ -78,31 +55,6 @@ impl Deref for Cdio {
 
     fn deref(&self) -> &Self::Target {
         &self.cdio
-    }
-}
-
-impl<'a> CdioBuilder<'a> {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// The source to read from, such as a device or image path.
-    pub fn source(mut self, source: &'a Path) -> Self {
-        self.source = Some(source);
-        self
-    }
-
-    /// Build the Cdio type with the set params.
-    /// # Returns
-    /// `None` if the `source` could not be read from,
-    /// or the driver is not available.
-    pub fn build(self) -> Option<Cdio> {
-        let source = self
-            .source
-            .and_then(|src| src.to_str())
-            .and_then(|src| CString::new(src).ok());
-
-        Cdio::open(source.as_deref(), None)
     }
 }
 
@@ -115,3 +67,8 @@ impl Drop for Cdio {
         unsafe { libcdio_sys::cdio_destroy(self.cdio.as_ptr()) }
     }
 }
+
+/// A lock guarding a private static named `CdIo_last_driver`. It must be held
+/// before invoking any libcdio methods that modify this value.
+/// As of libcdio v2.3.0, such methods are `cdio_init()` and `cdio_destroy()`.
+static CDIO_LAST_DRIVER_LOCK: Mutex<()> = Mutex::new(());

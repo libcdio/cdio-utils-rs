@@ -35,8 +35,6 @@ pub use file_mode;
 #[cfg(any(feature = "iso9660", feature = "udf"))]
 pub use time;
 
-pub use crate::cdio::{Cdio, CdioBuilder};
-
 #[doc(inline)]
 pub use crate::drive::Drive;
 
