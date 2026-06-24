@@ -38,6 +38,9 @@ pub use time;
 #[doc(inline)]
 pub use crate::drive::Drive;
 
+#[doc(inline)]
+pub use crate::mmc::Mmc;
+
 #[cfg(feature = "iso9660")]
 #[doc(inline)]
 pub use crate::iso9660::Iso9660;
