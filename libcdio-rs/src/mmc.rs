@@ -27,7 +27,7 @@ use libcdio_sys::{
 };
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-use crate::cdio::Cdio;
+use crate::drive::Drive;
 
 /// Represents the MMC Level.
 #[repr(u32)]
@@ -49,7 +49,7 @@ pub enum MmcLevel {
     // and therefore, can be omitted here
 }
 
-impl Cdio {
+impl Drive {
     /// Get the MMC level supported by the device.
     /// Returns `None` if the device doesn't support MMC.
     pub fn mmc_level(&self) -> Option<MmcLevel> {
@@ -70,9 +70,9 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore = "requires a cd/dvd drive"]
+    #[ignore = "requires a disc drive with mmc"]
     fn mmc_level() {
-        let cdio = Cdio::new().unwrap();
-        assert!(cdio.mmc_level().is_some());
+        let drive = Drive::new().unwrap();
+        assert!(drive.mmc_level().is_some());
     }
 }

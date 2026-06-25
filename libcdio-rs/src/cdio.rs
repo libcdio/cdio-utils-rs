@@ -19,6 +19,7 @@
 
 use std::{
     ffi::{CStr, CString},
+    ops::Deref,
     path::Path,
     ptr::{self, NonNull},
     sync::Mutex,
@@ -55,7 +56,7 @@ impl Cdio {
         Self::open(None, None)
     }
 
-    fn open(source: Option<&CStr>, driver: Option<driver_id_t>) -> Option<Self> {
+    pub(crate) fn open(source: Option<&CStr>, driver: Option<driver_id_t>) -> Option<Self> {
         logging::init_logger();
 
         let driver = driver.unwrap_or(driver_id_t_DRIVER_UNKNOWN);
@@ -69,6 +70,14 @@ impl Cdio {
         Some(Self {
             cdio: NonNull::new(cdio)?,
         })
+    }
+}
+
+impl Deref for Cdio {
+    type Target = NonNull<CdIo_t>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.cdio
     }
 }
 

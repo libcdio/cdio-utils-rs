@@ -15,27 +15,33 @@
 // You should have received a copy of the GNU General Public License
 // along with libcdio-rs. If not, see <https://www.gnu.org/licenses/>.
 
-//! Device or driver related routines.
-//!
-//! Most methods are implemented on [`Cdio`].
-//! As such, you may refer to its documentation.
+//! Routines related to CD/DVD drives.
 
 use std::{ffi::CStr, mem::MaybeUninit};
 
+use displaydoc::Display;
 use libcdio_sys::{cdio_hwinfo_t, driver_id_t_DRIVER_DEVICE};
+use thiserror::Error;
 
 use crate::cdio::Cdio;
 
-/// Hardware information returned by a cdio driver.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct HardwareInfo {
-    pub model: String,
-    pub vendor: String,
-    pub revision: String,
+/// An interface to a disc drive.
+pub struct Drive {
+    pub(crate) cdio: Cdio,
 }
 
-impl Cdio {
-    /// Return the default CD device.
+impl Drive {
+    /// Use a default connected drive.
+    ///
+    /// # Errors
+    /// If there are no drives connected, or the drive could not be opened.
+    pub fn new() -> Result<Self, DriveNotFoundError> {
+        Cdio::open(None, Some(driver_id_t_DRIVER_DEVICE))
+            .ok_or(DriveNotFoundError)
+            .map(|cdio| Self { cdio })
+    }
+
+    /// Return the default disc device.
     /// Returns `None` if the default device could not be fetched.
     pub fn default_device(&self) -> Option<String> {
         let default_device_p = unsafe { libcdio_sys::cdio_get_default_device(self.cdio.as_ptr()) };
@@ -87,7 +93,8 @@ impl Cdio {
         Some(devices)
     }
 
-    /// Returns hardware information.
+    /// Returns hardware information of the drive.
+    /// Returns `None` if the drive is not available anymore.
     pub fn hardware_info(&self) -> Option<HardwareInfo> {
         let mut hwinfo: MaybeUninit<cdio_hwinfo_t> = MaybeUninit::uninit();
         let ret = unsafe { libcdio_sys::cdio_get_hwinfo(self.cdio.as_ptr(), hwinfo.as_mut_ptr()) };
@@ -113,36 +120,41 @@ impl Cdio {
     }
 }
 
+/// could not find any drives
+#[non_exhaustive]
+#[derive(Debug, Display, Error)]
+pub struct DriveNotFoundError;
+
+/// Hardware information returned by a cdio driver.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HardwareInfo {
+    pub model: String,
+    pub vendor: String,
+    pub revision: String,
+}
+
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
-
     use super::*;
 
-    fn test_cue_file() -> &'static Path {
-        Path::new("../test-data/isofs-m1.cue")
-    }
-
     #[test]
-    #[ignore = "requires a cd/dvd drive"]
+    #[ignore = "requires a disc drive"]
     fn default_device_test() {
-        let cdio = Cdio::new().unwrap();
-        assert!(cdio.default_device().is_some());
+        let drive = Drive::new().unwrap();
+        assert!(drive.default_device().is_some());
     }
 
     #[test]
-    #[ignore = "requires a cd/dvd drive"]
+    #[ignore = "requires a disc drive"]
     fn devices() {
-        let cdio = Cdio::new().unwrap();
-        assert!(!cdio.devices().unwrap().is_empty());
+        let drive = Drive::new().unwrap();
+        assert!(!drive.devices().unwrap().is_empty());
     }
 
     #[test]
-    #[ignore = "requires a cd/dvd drive"]
+    #[ignore = "requires a disc drive"]
     fn hardware_info() {
-        let cdio = Cdio::new().unwrap();
-        assert!(cdio.hardware_info().is_some());
-        let cdio = Cdio::builder().source(test_cue_file()).build().unwrap();
-        assert!(cdio.hardware_info().is_some());
+        let drive = Drive::new().unwrap();
+        assert!(drive.hardware_info().is_some());
     }
 }
