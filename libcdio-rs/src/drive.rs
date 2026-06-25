@@ -18,7 +18,7 @@
 //! Routines related to CD/DVD drives.
 
 use std::{
-    ffi::{CStr, OsString},
+    ffi::{CStr, CString, NulError, OsString},
     mem::MaybeUninit,
     path::PathBuf,
 };
@@ -36,6 +36,7 @@ pub struct Drive {
 
 impl Drive {
     /// Get a list of connected drives.
+    /// The values could be used with [`Self::with_drive()`].
     pub fn drives() -> Vec<PathBuf> {
         let drive_list = unsafe { libcdio_sys::cdio_get_devices(Cdio::DEVICE_DRIVER) };
         if drive_list.is_null() {
@@ -72,6 +73,33 @@ impl Drive {
         Cdio::new(None, Cdio::DEVICE_DRIVER)
             .ok_or(DriveNotFoundError)
             .map(|cdio| Self { cdio })
+    }
+
+    /// Use the provided drive.
+    ///
+    /// A list of drives can be obtained using [`Self::drives()`].
+    ///
+    /// # Errors
+    /// - If the device at path could not be opened as a drive
+    /// - If the drive path contains null character
+    pub fn with_drive(drive: PathBuf) -> Result<Self, WithDriveError> {
+        let drive = CString::new(drive.into_os_string().into_encoded_bytes()).map_err(|err| {
+            WithDriveError {
+                drive: os_string_from_bytes_safe(err.clone().into_vec()).into(),
+                source: WithDriveErrorKind::DriveHasNullChar(err),
+            }
+        })?;
+        let cdio = Cdio::new(Some(&drive), Cdio::DEVICE_DRIVER).ok_or_else(|| WithDriveError {
+            drive: os_string_from_bytes_safe(drive.into_bytes()).into(),
+            source: WithDriveErrorKind::CouldNotOpenAsDrive,
+        })?;
+
+        fn os_string_from_bytes_safe(bytes: Vec<u8>) -> OsString {
+            // SAFETY: the bytes originate from an OsString
+            unsafe { OsString::from_encoded_bytes_unchecked(bytes) }
+        }
+
+        Ok(Self { cdio })
     }
 
     /// Returns hardware information of the drive.
@@ -113,6 +141,21 @@ pub struct DriveNotFoundError;
 #[derive(Debug, Display, Error)]
 pub struct DriveOperationError;
 
+/// error opening drive at `{drive}`
+#[derive(Debug, Display, Error)]
+pub struct WithDriveError {
+    pub drive: PathBuf,
+    pub source: WithDriveErrorKind,
+}
+/// Error kind of [`WithDriveError`]
+#[derive(Debug, Display, Error)]
+pub enum WithDriveErrorKind {
+    /// drive path contains null character
+    DriveHasNullChar(NulError),
+    /// could not open device as a drive
+    CouldNotOpenAsDrive,
+}
+
 /// Hardware information returned by a cdio driver.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HardwareInfo {
@@ -124,6 +167,11 @@ pub struct HardwareInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    #[ignore = "requires a disc drive"]
+    fn with_drive() {
+        Drive::with_drive(PathBuf::from("/dev/cdrom")).unwrap();
+    }
 
     #[test]
     #[ignore = "requires a disc drive"]
