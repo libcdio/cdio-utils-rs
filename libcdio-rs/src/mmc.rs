@@ -17,6 +17,10 @@
 
 //! SCSI MMC (MultiMedia Commands) routines.
 
+pub use get_config::*;
+
+mod get_config;
+
 use displaydoc::Display;
 use libcdio_sys::{
     cdio_mmc_level_t_CDIO_MMC_LEVEL_1, cdio_mmc_level_t_CDIO_MMC_LEVEL_2,
