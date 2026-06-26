@@ -146,6 +146,37 @@ pub enum ProfileKind {
     NonConform = 0xFFFF,
 }
 
+// WARNING: Changes to the doc comments can affect the type's display output!
+/// Physical interface standard reported by MMC.
+#[repr(u32)]
+#[non_exhaustive]
+#[derive(
+    Clone, Copy, Debug, Default, Display, Eq, Hash, Ord, PartialEq, PartialOrd, TryFromPrimitive,
+)]
+pub enum MmcInterface {
+    #[default]
+    /// Unspecified
+    Unspecified = 0x0,
+    /// SCSI
+    Scsi = 0x1,
+    /// ATAPI
+    Atapi = 0x2,
+    /// IEEE 1394
+    Ieee1394 = 0x3,
+    /// IEEE 1394A
+    Ieee1394A = 0x4,
+    /// Fibre Channel
+    FibreChannel = 0x5,
+    /// IEEE 1394B
+    Ieee1394B = 0x6,
+    /// Serial ATAPI
+    SerialAtapi = 0x7,
+    /// USB (both 1.1 and 2.0)
+    Usb = 0x8,
+    /// Vendor Unique
+    VendorUnique = 0xffff,
+}
+
 /// Methods related to the `GET CONFIGURATION` command.
 impl Mmc {
     /// Return type to request data pertaining only to a single feature,
@@ -179,6 +210,26 @@ impl Mmc {
         }
 
         Some(profiles)
+    }
+
+    /// The physical interface in use (`001h`).
+    /// <div class="warning">
+    ///
+    /// **NOTE**: It is possible that more than one physical interface exists between the Host and Drive, e.g., an
+    /// IEEE1394 Host connecting to an ATAPI bridge to an ATAPI Drive. The Drive may not be aware of
+    /// interfaces beyond the ATAPI.
+    ///
+    /// </div>
+    /// `None` is returned on error.
+    pub fn interface(&self) -> Option<MmcInterface> {
+        const GET_CONF_FEAT_CORE: u32 = 0x1;
+        let mut buf = [0_u8; Self::RESP_BUF_SIZE];
+        let _ = self.get_configuration(&mut buf, GET_CONF_FEAT_CORE)?;
+
+        let iface_num = read_u32(&buf[Self::FEAT_DESC_INDEX + 4..]);
+        MmcInterface::try_from(iface_num)
+            .inspect_err(|err| error!(?err, iface_num, "got invalid interface value from mmc"))
+            .ok()
     }
 
     /// Run MMC `GET CONFIGURATION`, requesting information on `feature`.
@@ -239,5 +290,12 @@ mod tests {
     fn profiles() {
         let mmc = Mmc::new().unwrap();
         assert!(!mmc.profiles().unwrap().is_empty());
+    }
+
+    #[test]
+    #[ignore = "requires a disc drive with mmc"]
+    fn interface() {
+        let mmc = Mmc::new().unwrap();
+        mmc.interface().unwrap();
     }
 }
