@@ -177,6 +177,16 @@ pub enum MmcInterface {
     VendorUnique = 0xffff,
 }
 
+/// Info from the MMC Morphing feature (`0002h`).
+#[derive(Clone, Copy, Debug)]
+pub struct MmcMorphing {
+    /// Supports async in addition to polling implementations of
+    /// `GET EVENT STATUS NOTIFICATION`
+    pub async_events: bool,
+    /// Supports Operational Change Request/Notification Class Events
+    pub op_chg_events: bool,
+}
+
 /// Methods related to the `GET CONFIGURATION` command.
 impl Mmc {
     /// Return type to request data pertaining only to a single feature,
@@ -230,6 +240,19 @@ impl Mmc {
         MmcInterface::try_from(iface_num)
             .inspect_err(|err| error!(?err, iface_num, "got invalid interface value from mmc"))
             .ok()
+    }
+
+    /// Get info from the Morphing feature (`002h`).
+    /// `None` is returned on error.
+    pub fn morphing(&self) -> Option<MmcMorphing> {
+        const GET_CONF_FEAT_MORPHING: u32 = 0x2;
+        let mut buf = [0_u8; Self::RESP_BUF_SIZE];
+        let _ = self.get_configuration(&mut buf, GET_CONF_FEAT_MORPHING)?;
+
+        Some(MmcMorphing {
+            async_events: buf[Self::FEAT_DESC_INDEX + 4] & 0b1 != 0,
+            op_chg_events: buf[Self::FEAT_DESC_INDEX + 4] & 0b10 != 0,
+        })
     }
 
     /// Run MMC `GET CONFIGURATION`, requesting information on `feature`.
@@ -297,5 +320,12 @@ mod tests {
     fn interface() {
         let mmc = Mmc::new().unwrap();
         mmc.interface().unwrap();
+    }
+
+    #[test]
+    #[ignore = "requires a disc drive with mmc"]
+    fn morphing() {
+        let mmc = Mmc::new().unwrap();
+        mmc.morphing().unwrap();
     }
 }
