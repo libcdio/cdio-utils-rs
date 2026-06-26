@@ -29,17 +29,8 @@ pub mod mmc;
 #[cfg(feature = "udf")]
 pub mod udf;
 
-#[cfg(any(feature = "iso9660", feature = "udf"))]
-pub use file_mode;
-
-#[cfg(any(feature = "iso9660", feature = "udf"))]
-pub use time;
-
 #[doc(inline)]
-pub use crate::drive::Drive;
-
-#[doc(inline)]
-pub use crate::mmc::Mmc;
+pub use crate::{drive::Drive, mmc::Mmc};
 
 #[cfg(feature = "iso9660")]
 #[doc(inline)]
@@ -48,3 +39,6 @@ pub use crate::iso9660::Iso9660;
 #[cfg(feature = "udf")]
 #[doc(inline)]
 pub use crate::udf::Udf;
+
+#[cfg(any(feature = "iso9660", feature = "udf"))]
+pub use {file_mode, time};
