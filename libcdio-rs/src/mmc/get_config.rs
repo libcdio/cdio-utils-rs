@@ -404,6 +404,25 @@ impl Mmc {
         })
     }
 
+    /// Info from the Drive Serial Number feature (`108h`).
+    ///
+    /// `None` is returned if the feature is not active, or on error.
+    pub fn serial_num(&self) -> Option<String> {
+        const GET_CONF_FEAT_DRIVE_SERIAL_NUM: u32 = 0x106;
+        let mut buf = [0_u8; Self::RESP_BUF_SIZE];
+        let _ = self.get_configuration(&mut buf, GET_CONF_FEAT_DRIVE_SERIAL_NUM)?;
+
+        let active = buf[Self::FEAT_DESC_INDEX + 2] & 0b1 != 0;
+        if !active {
+            return None;
+        }
+
+        let len = buf[Self::FEAT_DESC_INDEX + 3] as usize;
+        let sno_index = Self::FEAT_DESC_INDEX + 4;
+
+        String::from_utf8(buf[sno_index..sno_index + len].to_vec()).ok()
+    }
+
     /// Run MMC `GET CONFIGURATION`, requesting information on `feature`.
     /// Returns the size of the data in the allocated buffer, or `None` on error.
     fn get_configuration(&self, buf: &mut [u8], feature: u32) -> Option<usize> {
@@ -504,5 +523,12 @@ mod tests {
     fn dvd_css_info() {
         let mmc = Mmc::new().unwrap();
         mmc.dvd_css_info().unwrap();
+    }
+
+    #[test]
+    #[ignore = "requires a disc drive with mmc"]
+    fn serial_num() {
+        let mmc = Mmc::new().unwrap();
+        dbg!(mmc.serial_num());
     }
 }
