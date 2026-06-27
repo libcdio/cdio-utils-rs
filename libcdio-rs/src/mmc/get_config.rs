@@ -249,6 +249,15 @@ pub struct MmcCdAudioExtPlay {
     pub volume_levels: u16,
 }
 
+/// Info from the DVD CSS (Content Scrambling) feature.
+#[derive(Clone, Copy, Debug)]
+pub struct MmcDvdCss {
+    /// Feature is currently active (DVD CSS/CPPM media is present)
+    pub active: bool,
+    /// CSS Version
+    pub css_version: u8,
+}
+
 /// Methods related to the `GET CONFIGURATION` command.
 impl Mmc {
     /// Return type to request data pertaining only to a single feature,
@@ -381,6 +390,20 @@ impl Mmc {
         })
     }
 
+    /// Info from the DVD CSS (Content Scrambling) feature (`106h`).
+    ///
+    /// `None` is returned on error.
+    pub fn dvd_css_info(&self) -> Option<MmcDvdCss> {
+        const GET_CONF_FEAT_DVD_CSS: u32 = 0x106;
+        let mut buf = [0_u8; Self::RESP_BUF_SIZE];
+        let _ = self.get_configuration(&mut buf, GET_CONF_FEAT_DVD_CSS)?;
+
+        Some(MmcDvdCss {
+            active: buf[Self::FEAT_DESC_INDEX + 2] & 0b1 != 0,
+            css_version: buf[Self::FEAT_DESC_INDEX + 7],
+        })
+    }
+
     /// Run MMC `GET CONFIGURATION`, requesting information on `feature`.
     /// Returns the size of the data in the allocated buffer, or `None` on error.
     fn get_configuration(&self, buf: &mut [u8], feature: u32) -> Option<usize> {
@@ -474,5 +497,12 @@ mod tests {
     fn cd_audio_ext_play_info() {
         let mmc = Mmc::new().unwrap();
         mmc.cd_audio_ext_play_info().unwrap();
+    }
+
+    #[test]
+    #[ignore = "requires a disc drive with mmc"]
+    fn dvd_css_info() {
+        let mmc = Mmc::new().unwrap();
+        mmc.dvd_css_info().unwrap();
     }
 }
