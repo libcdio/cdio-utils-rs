@@ -187,6 +187,40 @@ pub struct MmcMorphing {
     pub op_chg_events: bool,
 }
 
+/// Removable medium info about the drive, reported by MMC.
+#[derive(Clone, Copy, Debug)]
+pub struct MmcMedium {
+    /// The drive is capable of ejecting media via START/STOP commands
+    pub eject: bool,
+    /// The drive is capable of locking media
+    pub lock: bool,
+    /// The drive has a prevent jumper
+    pub prevent_jumper: bool,
+    /// The Loading mechanism type used by the drive
+    pub load_mech: MmcLoadMech,
+}
+
+// WARNING: Changes to the doc comments can affect the type's display output!
+/// Loading mechanism type used by the drive.
+#[repr(u8)]
+#[non_exhaustive]
+#[derive(
+    Clone, Copy, Debug, Default, Display, Eq, Hash, Ord, PartialEq, PartialOrd, TryFromPrimitive,
+)]
+pub enum MmcLoadMech {
+    /// Caddy/Slot type
+    CaddySlot = 0b000,
+    #[default]
+    /// Tray type
+    Tray = 0b001,
+    /// Pop-up type
+    PopUp = 0b010,
+    /// Embedded changer with individually changeable discs
+    EmbeddedChangerIndividualDiscs = 0b100,
+    /// Embedded changer using a magazine mechanism
+    EmbeddedChangerMagazine = 0b101,
+}
+
 /// Methods related to the `GET CONFIGURATION` command.
 impl Mmc {
     /// Return type to request data pertaining only to a single feature,
@@ -252,6 +286,29 @@ impl Mmc {
         Some(MmcMorphing {
             async_events: buf[Self::FEAT_DESC_INDEX + 4] & 0b1 != 0,
             op_chg_events: buf[Self::FEAT_DESC_INDEX + 4] & 0b10 != 0,
+        })
+    }
+
+    /// Get info from the Removable medium feature (`003h`).
+    ///
+    /// `None` is returned on error.
+    pub fn medium(&self) -> Option<MmcMedium> {
+        const GET_CONF_FEAT_REM_MEDIUM: u32 = 0x3;
+        let mut buf = [0_u8; Self::RESP_BUF_SIZE];
+        let _ = self.get_configuration(&mut buf, GET_CONF_FEAT_REM_MEDIUM)?;
+
+        let byte = buf[Self::FEAT_DESC_INDEX + 4];
+
+        let load_mech = byte >> 5;
+        let load_mech = MmcLoadMech::try_from(load_mech)
+            .inspect_err(|err| error!(?err, load_mech, "got invalid loading mech value from mmc"))
+            .ok()?;
+
+        Some(MmcMedium {
+            eject: byte & 0b1 << 3 != 0,
+            lock: byte & 0b1 != 0,
+            prevent_jumper: byte & 0b1 << 2 == 0,
+            load_mech,
         })
     }
 
@@ -327,5 +384,12 @@ mod tests {
     fn morphing() {
         let mmc = Mmc::new().unwrap();
         mmc.morphing().unwrap();
+    }
+
+    #[test]
+    #[ignore = "requires a disc drive with mmc"]
+    fn medium() {
+        let mmc = Mmc::new().unwrap();
+        mmc.medium().unwrap();
     }
 }
