@@ -221,6 +221,19 @@ pub enum MmcLoadMech {
     EmbeddedChangerMagazine = 0b101,
 }
 
+/// Info from the CD Read feature, reported by MMC.
+#[derive(Clone, Copy, Debug)]
+pub struct MmcCdRead {
+    /// The feature is currently active
+    pub active: bool,
+    /// Supports C2 error pointers
+    pub c2_error: bool,
+    /// Supports CD-Text (Format Code `5h` of `READ TOC/PMA/ATIP`)
+    pub cd_text: bool,
+    /// Supports DAP bit for the `CDB` in `READ CD` and `READ CD MSF` commands
+    pub dap: bool,
+}
+
 /// Methods related to the `GET CONFIGURATION` command.
 impl Mmc {
     /// Return type to request data pertaining only to a single feature,
@@ -312,6 +325,25 @@ impl Mmc {
         })
     }
 
+    /// Get info from the CD Read feature (`01eh`).
+    ///
+    /// `None` is returned on error.
+    pub fn cd_read_info(&self) -> Option<MmcCdRead> {
+        const GET_CONF_FEAT_CD_READ: u32 = 0x1e;
+        let mut buf = [0_u8; Self::RESP_BUF_SIZE];
+        let _ = self.get_configuration(&mut buf, GET_CONF_FEAT_CD_READ)?;
+
+        let active = buf[Self::FEAT_DESC_INDEX + 2] & 0b1 != 0;
+        let probe = buf[Self::FEAT_DESC_INDEX + 4];
+
+        Some(MmcCdRead {
+            active,
+            c2_error: probe & 0b1 != 0,
+            cd_text: probe & 0b1 << 1 != 0,
+            dap: probe & 0b1 << 7 != 0,
+        })
+    }
+
     /// Run MMC `GET CONFIGURATION`, requesting information on `feature`.
     /// Returns the size of the data in the allocated buffer, or `None` on error.
     fn get_configuration(&self, buf: &mut [u8], feature: u32) -> Option<usize> {
@@ -391,5 +423,12 @@ mod tests {
     fn medium() {
         let mmc = Mmc::new().unwrap();
         mmc.medium().unwrap();
+    }
+
+    #[test]
+    #[ignore = "requires a disc drive with mmc"]
+    fn cd_read_info() {
+        let mmc = Mmc::new().unwrap();
+        mmc.cd_read_info().unwrap();
     }
 }
