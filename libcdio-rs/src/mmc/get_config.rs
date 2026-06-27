@@ -234,6 +234,21 @@ pub struct MmcCdRead {
     pub dap: bool,
 }
 
+/// Info from the CD Audio External Play feature, reported by MMC.
+#[derive(Clone, Copy, Debug)]
+pub struct MmcCdAudioExtPlay {
+    /// Feature is currently active
+    pub active: bool,
+    /// Supports the `SCAN` command
+    pub scan: bool,
+    /// Supports independent mute of audio channels
+    pub sep_channel_mute: bool,
+    /// Supports independent volume levels for audio channels
+    pub sep_volume: bool,
+    /// Number of discrete volume levels supported
+    pub volume_levels: u16,
+}
+
 /// Methods related to the `GET CONFIGURATION` command.
 impl Mmc {
     /// Return type to request data pertaining only to a single feature,
@@ -344,6 +359,28 @@ impl Mmc {
         })
     }
 
+    /// Get info from the CD Audio External Play feature (`103h`).
+    ///
+    /// `None` is returned on error.
+    pub fn cd_audio_ext_play_info(&self) -> Option<MmcCdAudioExtPlay> {
+        const GET_CONF_FEAT_CD_AUDIO_EXT_PLAY: u32 = 0x103;
+        let mut buf = [0_u8; Self::RESP_BUF_SIZE];
+        let _ = self.get_configuration(&mut buf, GET_CONF_FEAT_CD_AUDIO_EXT_PLAY)?;
+
+        let active = buf[Self::FEAT_DESC_INDEX + 2] & 0b1 != 0;
+        let probe = buf[Self::FEAT_DESC_INDEX + 4];
+
+        let volume_levels = read_u16(&buf[Self::FEAT_DESC_INDEX + 6..]);
+
+        Some(MmcCdAudioExtPlay {
+            active,
+            scan: probe & 0b1 << 2 != 0,
+            sep_channel_mute: probe & 0b1 << 1 != 0,
+            sep_volume: probe & 0b1 != 0,
+            volume_levels,
+        })
+    }
+
     /// Run MMC `GET CONFIGURATION`, requesting information on `feature`.
     /// Returns the size of the data in the allocated buffer, or `None` on error.
     fn get_configuration(&self, buf: &mut [u8], feature: u32) -> Option<usize> {
@@ -430,5 +467,12 @@ mod tests {
     fn cd_read_info() {
         let mmc = Mmc::new().unwrap();
         mmc.cd_read_info().unwrap();
+    }
+
+    #[test]
+    #[ignore = "requires a disc drive with mmc"]
+    fn cd_audio_ext_play_info() {
+        let mmc = Mmc::new().unwrap();
+        mmc.cd_audio_ext_play_info().unwrap();
     }
 }
