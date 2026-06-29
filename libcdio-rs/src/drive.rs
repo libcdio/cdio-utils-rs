@@ -94,12 +94,14 @@ impl Drive {
     }
 
     /// Returns hardware information of the drive.
-    /// Returns `None` if the drive is not available anymore.
-    pub fn hardware_info(&self) -> Option<HardwareInfo> {
+    ///
+    /// # Errors
+    /// If an underlying operation errored, or if the drive is unavailable.
+    pub fn hardware_info(&self) -> Result<HardwareInfo, DriveOperationError> {
         let mut hwinfo: MaybeUninit<cdio_hwinfo_t> = MaybeUninit::uninit();
         let ret = unsafe { libcdio_sys::cdio_get_hwinfo(self.cdio.as_ptr(), hwinfo.as_mut_ptr()) };
         if !ret {
-            return None;
+            return Err(DriveOperationError);
         }
 
         // SAFETY: cdio_get_hwinfo() returned true, therefore hwinfo should be initialized
@@ -111,7 +113,7 @@ impl Drive {
             let vendor = CStr::from_ptr(hwinfo.psz_vendor.as_ptr());
             let revision = CStr::from_ptr(hwinfo.psz_revision.as_ptr());
 
-            Some(HardwareInfo {
+            Ok(HardwareInfo {
                 model: model.to_string_lossy().trim_end().to_string(),
                 vendor: vendor.to_string_lossy().trim_end().to_string(),
                 revision: revision.to_string_lossy().trim_end().to_string(),
@@ -124,6 +126,11 @@ impl Drive {
 #[non_exhaustive]
 #[derive(Debug, Display, Error)]
 pub struct DriveNotFoundError;
+
+/// could not perform operation on the drive
+#[non_exhaustive]
+#[derive(Debug, Display, Error)]
+pub struct DriveOperationError;
 
 /// Hardware information returned by a cdio driver.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -154,7 +161,6 @@ mod tests {
     #[test]
     #[ignore = "requires a disc drive"]
     fn hardware_info() {
-        let drive = Drive::new().unwrap();
-        assert!(drive.hardware_info().is_some());
+        Drive::new().unwrap().hardware_info().unwrap();
     }
 }
