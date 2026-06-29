@@ -51,7 +51,7 @@ bitflags! {
     }
 }
 
-impl Iso9660Entry {
+impl Iso9660Entry<'_> {
     /// Return CD-ROM XA (eXtended Architecture) attributes.
     /// `None` is returned if the attributes are not present.
     pub fn xa(&self) -> Option<CdRomXa> {

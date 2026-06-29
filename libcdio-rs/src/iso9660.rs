@@ -90,6 +90,9 @@ pub enum JolietLevel {
 }
 
 impl Iso9660 {
+    /// The number of bytes used by an ISO 9660 block.
+    pub const BLOCK_SIZE: usize = 2048;
+
     /// Open an ISO 9660 image for reading at given `path`, with all iso9660
     /// extension flags enabled. Returns `None` on error.
     pub fn new(path: &Path) -> Option<Self> {

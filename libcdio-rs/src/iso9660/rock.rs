@@ -62,7 +62,7 @@ impl Iso9660 {
     }
 }
 
-impl Iso9660Entry {
+impl Iso9660Entry<'_> {
     /// Rock Ridge extensions.
     /// `None` is returned if Rock ridge extensions are missing, or if it
     /// could not be determined.
