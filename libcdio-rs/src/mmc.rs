@@ -17,6 +17,11 @@
 
 //! SCSI MMC (MultiMedia Commands) routines.
 
+use std::{
+    ffi::{CString, NulError, OsString},
+    path::PathBuf,
+};
+
 pub use get_config::*;
 
 mod get_config;
@@ -67,6 +72,36 @@ impl Mmc {
             .ok_or(MmcNotFoundError)
     }
 
+    /// Use the provided device.
+    ///
+    /// # Errors
+    /// If there are no devices with MMC connected, or the device could not be
+    /// opened.
+    pub fn with_device(device: PathBuf) -> Result<Mmc, WithDeviceError> {
+        let device = CString::new(device.into_os_string().into_encoded_bytes()).map_err(|err| {
+            WithDeviceError {
+                device: os_string_from_bytes_safe(err.clone().into_vec()).into(),
+                source: WithDeviceErrorKind::DeviceHasNullChar(err),
+            }
+        })?;
+        let Some(cdio) = Cdio::new(Some(&device), Cdio::DEVICE_DRIVER) else {
+            return Err(WithDeviceError {
+                device: os_string_from_bytes_safe(device.into_bytes()).into(),
+                source: WithDeviceErrorKind::CouldNotOpenDevice,
+            });
+        };
+        let mmc = Self { cdio };
+        return mmc.level().map(|_| mmc).map_err(|_| WithDeviceError {
+            device: os_string_from_bytes_safe(device.into_bytes()).into(),
+            source: WithDeviceErrorKind::MmcNotSupported,
+        });
+
+        fn os_string_from_bytes_safe(bytes: Vec<u8>) -> OsString {
+            // SAFETY: the bytes originate from an OsString
+            unsafe { OsString::from_encoded_bytes_unchecked(bytes) }
+        }
+    }
+
     /// Get the MMC level supported by the drive.
     ///
     /// # Errors
@@ -80,6 +115,23 @@ impl Mmc {
         Ok(MmcLevel::try_from(mmc_level)
             .expect("mmc_get_drive_mmc_cap should return a valid mmc_level_t"))
     }
+}
+
+/// error opening MMC device at `{device}`
+#[derive(Debug, Display, Error)]
+pub struct WithDeviceError {
+    pub device: PathBuf,
+    pub source: WithDeviceErrorKind,
+}
+/// Error kind of [`WithDeviceError`]
+#[derive(Debug, Display, Error)]
+pub enum WithDeviceErrorKind {
+    /// device path contains null character
+    DeviceHasNullChar(NulError),
+    /// could not open device
+    CouldNotOpenDevice,
+    /// device does not support MMC
+    MmcNotSupported,
 }
 
 /// could not find any devices that support MMC
@@ -96,6 +148,11 @@ pub struct MmcOperationError;
 mod tests {
     use super::*;
 
+    #[test]
+    #[ignore = "requires a disc drive with mmc"]
+    fn with_device() {
+        Mmc::with_device(PathBuf::from("/dev/cdrom")).unwrap();
+    }
     #[test]
     #[ignore = "requires a disc drive with mmc"]
     fn level() {
