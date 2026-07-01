@@ -16,9 +16,11 @@ udf = ["libcdio-sys/udf", "dep:file-mode", "dep:time"]
 
 [dependencies]
 bitflags = "2.11.1"
+displaydoc = "0.2.6"
 file-mode = { version = "0.1.2", optional = true }
 libcdio-sys.workspace = true
 num_enum = "0.7.6"
+thiserror = "2.0.18"
 time = { optional = true, workspace = true }
 tracing.workspace = true
 

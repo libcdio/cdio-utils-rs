@@ -18,7 +18,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 mod cdio;
-pub mod device;
+pub mod drive;
 
 #[cfg(feature = "iso9660")]
 pub mod iso9660;
@@ -35,7 +35,8 @@ pub use file_mode;
 #[cfg(any(feature = "iso9660", feature = "udf"))]
 pub use time;
 
-pub use crate::cdio::{Cdio, CdioBuilder};
+#[doc(inline)]
+pub use crate::drive::Drive;
 
 #[cfg(feature = "iso9660")]
 #[doc(inline)]
