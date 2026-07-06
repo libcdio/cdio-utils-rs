@@ -1,17 +1,20 @@
-# cdio-utils-rs: Utility programs of the Compact Disc (CD) Input and Control Core Library
+# cdio-rust
 
-This is a WIP Rust port of the CLI utilities provided by libcdio.
-Also includes [libcdio-rs](./libcdio-rs), which provides safe Rust abstractions
-over libcdio.
+Rust implementation and Utility programs of the Compact Disc Input and
+Control Core Library.
+
+This Cargo workspace contains two packages:
+- [libcdio-rs](./libcdio-rs): Safe Rust abstraction over libcdio C
+- [libcdio-cli](./libcdio-cli): Utility programs that use libcdio
 
 ## Status
- * [ ] cd-drive:      show CD-ROM drive characteristics
+ * [x] cd-drive:      show CD-ROM drive characteristics
  * [ ] cd-info:       show information about a CD or CD-image
  * [ ] cd-paranoia:   an audio CD ripper
  * [ ] cd-read:       read information from a CD or CD-image
  * [ ] cdda-player:   a simple curses-based audio CD player
- * [ ] iso-info:      show information about an ISO 9660 image
- * [ ] iso-read:      read portions of an ISO 9660 image
+ * [x] iso-info:      show information about an ISO 9660 image
+ * [x] iso-read:      read portions of an ISO 9660 image
  * [ ] mmc-tool:      issue low-level commands to a CD drive
 
 ## Development
@@ -19,8 +22,9 @@ over libcdio.
 - [Cargo](https://rust-lang.org/learn/get-started/): The Rust build tool
 - [libclang](https://rust-lang.github.io/rust-bindgen/requirements.html):
   Used by `libcdio-sys` for generating Rust bindings to libcdio
-- [libcdio](https://github.com/libcdio/libcdio): Consult your package manager
-
+- [libcdio](https://github.com/libcdio/libcdio): libcdio headers. Consult your package manager.
+  - Debian: `libcdio-headers`
+  - Fedora: `libcdio-devel`
 ### Build
 ```sh
 cargo build --release

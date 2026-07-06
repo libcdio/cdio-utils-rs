@@ -4,11 +4,11 @@ members = ["libcdio-cli", "libcdio-rs"]
 
 [workspace.package]
 authors = ["Shiva Kiran Koninty <shiva@skran.xyz>"]
-description = "Utility programs of the Compact Disc (CD) Input and Control Core Library"
+description = "Rust implementation and Utility programs of the Compact Disc Input and Control Core Library."
 edition = "2024"
 license = "GPL-3.0-or-later"
 readme = "README.md"
-repository = "https://github.com/libcdio/cdio-utils-rs"
+repository = "https://github.com/libcdio/cdio-rust"
 
 [workspace.dependencies]
 libcdio-sys = { version = "2.0.0", default-features = false }
