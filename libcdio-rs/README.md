@@ -1,6 +1,6 @@
-# libcdio-rs: Safe Rust abstraction over libcdio
-`libcdio-rs` provides a safe Rust abstraction over libcdio.
-To use the raw FFI bindings, please refer to [libcdio-sys](https://crates.io/crates/libcdio-sys).
+# libcdio-rs
+Safe Rust abstraction over libcdio C.
+To use the raw FFI bindings, check out [libcdio-sys](https://crates.io/crates/libcdio-sys).
 
 ## License
 Copyright (C) 2026 Shiva Kiran Koninty <shiva@skran.xyz>
