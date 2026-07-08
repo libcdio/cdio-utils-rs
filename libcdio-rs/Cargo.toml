@@ -19,7 +19,7 @@ bitflags = "2.11.1"
 displaydoc = "0.2.6"
 file-mode = { version = "0.1.2", optional = true }
 libcdio-sys.workspace = true
-num_enum = "0.7.6"
+num_enum = { version = "0.7.6", features = ["complex-expressions"] }
 thiserror = "2.0.18"
 time = { optional = true, workspace = true }
 tracing.workspace = true
