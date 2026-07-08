@@ -28,11 +28,11 @@ mod get_config;
 
 use displaydoc::Display;
 use libcdio_sys::{
-    cdio_mmc_level_t_CDIO_MMC_LEVEL_1, cdio_mmc_level_t_CDIO_MMC_LEVEL_2,
+    cdio_mmc_direction_t, cdio_mmc_level_t_CDIO_MMC_LEVEL_1, cdio_mmc_level_t_CDIO_MMC_LEVEL_2,
     cdio_mmc_level_t_CDIO_MMC_LEVEL_3, cdio_mmc_level_t_CDIO_MMC_LEVEL_NONE,
     cdio_mmc_level_t_CDIO_MMC_LEVEL_WEIRD,
 };
-use num_enum::TryFromPrimitive;
+use num_enum::{FromPrimitive, IntoPrimitive, TryFromPrimitive};
 use thiserror::Error;
 
 use crate::cdio::Cdio;
@@ -115,7 +115,38 @@ impl Mmc {
         Ok(MmcLevel::try_from(mmc_level)
             .expect("mmc_get_drive_mmc_cap should return a valid mmc_level_t"))
     }
+
+    #[allow(unused)]
+    fn run_command(
+        &self,
+        direction: Option<MmcDirection>,
+        buf: &mut [u8],
+        cdb: Cdb,
+    ) -> Result<(), OsError> {
+        let direction = direction
+            .map(cdio_mmc_direction_t::from)
+            .unwrap_or(libcdio_sys::mmc_direction_s_SCSI_MMC_DATA_NONE);
+        let cdb = libcdio_sys::mmc_cdb_s { field: cdb };
+        let ret = unsafe {
+            libcdio_sys::mmc_run_cmd(
+                self.cdio.as_ptr(),
+                DEFAULT_TIMEOUT_MS,
+                &cdb,
+                direction,
+                buf.len() as u32,
+                buf.as_mut_ptr().cast(),
+            )
+        };
+        if ret < 0 {
+            return Err(OsError::from(ret));
+        }
+
+        return Ok(());
+
+        const DEFAULT_TIMEOUT_MS: u32 = 6000;
+    }
 }
+type Cdb = [u8; 12];
 
 /// error opening MMC device at `{device}`
 #[derive(Debug, Display, Error)]
@@ -143,6 +174,32 @@ pub struct MmcNotFoundError;
 #[non_exhaustive]
 #[derive(Debug, Display, Error)]
 pub struct MmcOperationError;
+
+/// Direction of MMC data transfer
+#[repr(u32)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, IntoPrimitive)]
+enum MmcDirection {
+    #[default]
+    Read = libcdio_sys::mmc_direction_s_SCSI_MMC_DATA_READ,
+    #[allow(unused)]
+    Write = libcdio_sys::mmc_direction_s_SCSI_MMC_DATA_WRITE,
+}
+
+/// operating system error
+#[repr(i32)]
+#[non_exhaustive]
+#[derive(Debug, Display, Error, FromPrimitive)]
+pub enum OsError {
+    /// other error: {0}
+    #[num_enum(catch_all)]
+    Other(i32),
+    /// unsupported operation
+    Unsupported = libcdio_sys::driver_return_code_t_DRIVER_OP_UNSUPPORTED,
+    /// operation not permitted
+    OperationNotPermitted = libcdio_sys::driver_return_code_t_DRIVER_OP_NOT_PERMITTED,
+    /// bad parameter
+    BadParameter = libcdio_sys::driver_return_code_t_DRIVER_OP_BAD_PARAMETER,
+}
 
 #[cfg(test)]
 mod tests {
