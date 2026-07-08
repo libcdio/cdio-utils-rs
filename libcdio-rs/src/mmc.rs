@@ -23,8 +23,10 @@ use std::{
 };
 
 pub use get_config::*;
+pub use get_event_status::*;
 
 mod get_config;
+mod get_event_status;
 
 use displaydoc::Display;
 use libcdio_sys::{
@@ -116,7 +118,6 @@ impl Mmc {
             .expect("mmc_get_drive_mmc_cap should return a valid mmc_level_t"))
     }
 
-    #[allow(unused)]
     fn run_command(
         &self,
         direction: Option<MmcDirection>,
