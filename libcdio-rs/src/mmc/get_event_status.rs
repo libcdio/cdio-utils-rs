@@ -71,6 +71,14 @@ impl Mmc {
         const OPCODE: u8 = 0x4A;
     }
 
+    /// Is the device tray open.
+    ///
+    /// If the device does not have a tray, this should still return `false`.
+    pub fn is_tray_open(&self) -> Result<bool, MmcStatusError> {
+        self.media_status()
+            .map(|status| status.state.contains(MediaState::DoorOrTrayOpen))
+    }
+
     /// Get operational change status from the device.
     pub fn operational_event_status(&self) -> Result<OperationalStatus, MmcStatusError> {
         let data =
@@ -627,6 +635,17 @@ mod tests {
     #[ignore = "requires a disc drive with mmc"]
     fn supported_events() {
         Mmc::new().unwrap().supported_events().unwrap();
+    }
+
+    #[test_log::test(test)]
+    #[ignore = "requires a disc drive with mmc"]
+    fn is_tray_open() {
+        let is_tray_open = Mmc::new().unwrap().is_tray_open();
+        info!(?is_tray_open);
+        assert!(matches!(
+            is_tray_open,
+            Ok(_) | Err(MmcStatusError::EventNotSupported(_))
+        ));
     }
 
     #[test_log::test(test)]
