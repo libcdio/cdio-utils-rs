@@ -27,6 +27,7 @@ pub use get_event_status::*;
 
 mod get_config;
 mod get_event_status;
+mod read_subchannel;
 
 use displaydoc::Display;
 use libcdio_sys::{
