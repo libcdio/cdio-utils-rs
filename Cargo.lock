@@ -453,6 +453,7 @@ dependencies = [
  "thiserror",
  "time",
  "tracing",
+ "winnow",
 ]
 
 [[package]]
