@@ -25,7 +25,7 @@ use winnow::{
     Parser,
     binary::{
         be_u16,
-        bits::{bits, bool},
+        bits::{bits, bool, take as bits_take},
         length_take, u8,
     },
     error::{ContextError, StrContext},
@@ -74,6 +74,43 @@ impl Mmc {
             String::from_utf8(mcn.to_vec()).expect("mcn should not contain non utf8 characters");
 
         Ok(Some(mcn))
+    }
+
+    /// Get the International Standard Recording Code (ISRC) of given track number.
+    pub fn isrc(&self, track_number: TrackNumber) -> Result<Option<String>, MmcSubchannelError> {
+        let param = SubchannelParameter::Isrc {
+            track_number: track_number.0,
+        };
+        let data = self.read_subchannel(AddressFormat::Lba, Some(param))?;
+        let input = &mut data.as_slice();
+        parse_header(input)?;
+
+        let format_code = u8::<_, ContextError>.verify(|code| *code == param.discriminant());
+        let adr_and_control = bits((
+            bits_take::<_, u8, _, ContextError>(4_usize),
+            bits_take::<_, u8, _, _>(4_usize),
+        ));
+        let tcval = bits(bool::<_, ContextError>);
+        let (_format_code, _adr_and_control, _track, _, tcval, isrc, _zero, _aframe) = (
+            format_code,
+            adr_and_control,
+            u8.verify(|track| *track == track_number.0),
+            u8, // reserved
+            tcval,
+            take(12_usize), // isrc
+            u8.verify(|zero| *zero == 0),
+            u8, // aframe
+        )
+            .context(StrContext::Label("isrc descriptor"))
+            .parse_next(input)?;
+
+        if !tcval {
+            return Ok(None);
+        }
+        let isrc =
+            String::from_utf8(isrc.to_vec()).expect("isrc should not contain non utf8 characters");
+
+        Ok(Some(isrc))
     }
     /// Perform an MMC `READ SUB-CHANNEL`.
     fn read_subchannel(
@@ -204,6 +241,36 @@ impl<T: TryFromPrimitive> From<TryFromPrimitiveError<T>> for MmcSubchannelError 
     }
 }
 
+/// Track number.
+///
+/// Values must be between 1 and 99.
+/// Use [`TrackNumber::try_from`] to construct a new value.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct TrackNumber(u8);
+impl TryFrom<u8> for TrackNumber {
+    type Error = InvalidTrackNumber;
+
+    /// Construct `Self` from given track number.
+    ///
+    /// # Errors
+    /// If the track number not within the range of 1 to 99, inclusive.
+    fn try_from(track_number: u8) -> Result<Self, Self::Error> {
+        if (1..=99).contains(&track_number) {
+            Ok(Self(track_number))
+        } else {
+            Err(InvalidTrackNumber(track_number))
+        }
+    }
+}
+impl Default for TrackNumber {
+    fn default() -> Self {
+        Self(1)
+    }
+}
+/// invalid track number '{0}'; value must be between 1 and 99
+#[derive(Debug, Display, Error)]
+pub struct InvalidTrackNumber(u8);
+
 #[cfg(test)]
 mod tests {
     use tracing::info;
@@ -226,5 +293,12 @@ mod tests {
     fn media_catalog_number() {
         let mcn = Mmc::new().unwrap().media_catalog_number().unwrap();
         info!(?mcn);
+    }
+
+    #[test_log::test(test)]
+    #[ignore = "requires a disc drive with mmc"]
+    fn isrc() {
+        let isrc = Mmc::new().unwrap().isrc(TrackNumber::default()).unwrap();
+        info!(?isrc);
     }
 }
