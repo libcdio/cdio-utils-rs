@@ -112,6 +112,51 @@ impl Mmc {
 
         Ok(Some(isrc))
     }
+
+    /// Get the current position of the disc in time units.
+    pub fn cd_current_position(&self) -> Result<CdCurrentPosition, MmcSubchannelError> {
+        let param = SubchannelParameter::CdCurrentPosition;
+        let data = self.read_subchannel(AddressFormat::Time, Some(param))?;
+        let input = &mut data.as_slice();
+        parse_header(input)?;
+
+        let format_code = u8::<_, ContextError>.verify(|code| *code == param.discriminant());
+        let adr_and_control = bits((
+            bits_take::<_, u8, _, ContextError>(4_usize),
+            bits_take::<_, u8, _, _>(4_usize),
+        ));
+        let (_, _adr_and_control, track, index, absolute_address, relative_address) = (
+            format_code,
+            adr_and_control,
+            u8,            // track
+            u8,            // index
+            take(4_usize), // absolute address
+            take(4_usize), // relative address
+        )
+            .context(StrContext::Label("cd current position descriptor"))
+            .parse_next(input)?;
+
+        let absolute_position = TimePosition {
+            hour: absolute_address[0],
+            minute: absolute_address[1],
+            second: absolute_address[2],
+            frame: absolute_address[3],
+        };
+        let relative_position = TimePosition {
+            hour: relative_address[0],
+            minute: relative_address[1],
+            second: relative_address[2],
+            frame: relative_address[3],
+        };
+
+        Ok(CdCurrentPosition {
+            track,
+            index,
+            absolute_position,
+            relative_position,
+        })
+    }
+
     /// Perform an MMC `READ SUB-CHANNEL`.
     fn read_subchannel(
         &self,
@@ -271,6 +316,30 @@ impl Default for TrackNumber {
 #[derive(Debug, Display, Error)]
 pub struct InvalidTrackNumber(u8);
 
+/// CD current position information.
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct CdCurrentPosition {
+    /// track number
+    pub track: u8,
+
+    /// index number
+    pub index: u8,
+
+    /// position relative to the logical beginning of the media
+    pub absolute_position: TimePosition,
+
+    /// position relative to the logical beginning of the current track
+    pub relative_position: TimePosition,
+}
+/// A CD position, expressed in time units
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct TimePosition {
+    pub hour: u8,
+    pub minute: u8,
+    pub second: u8,
+    pub frame: u8,
+}
+
 #[cfg(test)]
 mod tests {
     use tracing::info;
@@ -300,5 +369,12 @@ mod tests {
     fn isrc() {
         let isrc = Mmc::new().unwrap().isrc(TrackNumber::default()).unwrap();
         info!(?isrc);
+    }
+
+    #[test_log::test(test)]
+    #[ignore = "requires a disc drive with mmc"]
+    fn cd_current_position() {
+        let cd_current_position = Mmc::new().unwrap().cd_current_position().unwrap();
+        info!(?cd_current_position);
     }
 }
