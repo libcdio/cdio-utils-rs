@@ -17,6 +17,16 @@
 
 //! Routines based on MMC `READ SUB-CHANNEL`.
 
+use displaydoc::Display;
+use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
+use thiserror::Error;
+use tracing::debug;
+use winnow::{
+    Parser,
+    binary::{be_u16, length_take, u8},
+    error::{ContextError, StrContext},
+};
+
 use crate::{
     Mmc,
     mmc::{Cdb, MmcDirection, OsError},
@@ -24,7 +34,14 @@ use crate::{
 
 /// Routines based on MMC `READ SUB-CHANNEL`.
 impl Mmc {
-    #[allow(unused)]
+    /// Get the status of audio play operations.
+    pub fn audio_status(&self) -> Result<MmcAudioStatus, MmcAudioStatusError> {
+        let data = self.read_subchannel(AddressFormat::Lba, None)?;
+        let status = parse_header(&mut data.as_slice())?;
+
+        status.ok_or(MmcAudioStatusError::NotSupported)
+    }
+
     /// Perform an MMC `READ SUB-CHANNEL`.
     fn read_subchannel(
         &self,
@@ -58,6 +75,40 @@ impl Mmc {
     }
 }
 
+/// The status of audio play operations
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, TryFromPrimitive)]
+pub enum MmcAudioStatus {
+    PlayInProgress = 0x11,
+    PlayPaused = 0x12,
+    PlayCompleted = 0x13,
+    PlayStopped = 0x14,
+
+    #[default]
+    NoStatus = 0x15,
+}
+
+/// error getting audio status via `READ SUB-CHANNEL`
+#[derive(Debug, Display, Error)]
+pub enum MmcAudioStatusError {
+    /// The device not support reporting audio status
+    NotSupported,
+
+    /// operating system returned an error: {0}
+    Os(#[from] OsError),
+
+    /// invalid response from command
+    InvalidResponse(String),
+}
+impl From<MmcSubchannelError> for MmcAudioStatusError {
+    fn from(value: MmcSubchannelError) -> Self {
+        match value {
+            MmcSubchannelError::Os(os_error) => Self::Os(os_error),
+            MmcSubchannelError::InvalidResponse(error) => Self::InvalidResponse(error),
+        }
+    }
+}
+
 /// Format to use for address fields in the response of `READ SUB-CHANNEL`
 #[allow(unused)]
 enum AddressFormat {
@@ -85,3 +136,55 @@ impl SubchannelParameter {
 }
 
 type SubchannelData = [u8; 24];
+
+fn parse_header(input: &mut &[u8]) -> Result<Option<MmcAudioStatus>, MmcSubchannelError> {
+    debug!(header = ?input, "parse_header()");
+    let (_, audio_status, remainder) = (u8::<_, ContextError>, u8, length_take(be_u16))
+        .context(StrContext::Label("READ SUB-CHANNEL response header"))
+        .parse_next(input)?;
+    *input = remainder;
+
+    (audio_status != 0)
+        .then(|| MmcAudioStatus::try_from(audio_status))
+        .transpose()
+        .map_err(MmcSubchannelError::from)
+}
+
+/// error from a `READ SUB-CHANNEL` command
+#[non_exhaustive]
+#[derive(Debug, Display, Error)]
+pub enum MmcSubchannelError {
+    /// operating system returned an error
+    Os(#[from] OsError),
+
+    /// invalid response from mmc command: {0}
+    InvalidResponse(String),
+}
+impl From<ContextError> for MmcSubchannelError {
+    fn from(err: ContextError) -> Self {
+        Self::InvalidResponse(err.to_string())
+    }
+}
+impl<T: TryFromPrimitive> From<TryFromPrimitiveError<T>> for MmcSubchannelError {
+    fn from(err: TryFromPrimitiveError<T>) -> Self {
+        Self::InvalidResponse(err.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tracing::info;
+
+    use super::*;
+
+    #[test_log::test(test)]
+    #[ignore = "requires a disc drive with mmc"]
+    fn audio_status() {
+        let audio_status = Mmc::new().unwrap().audio_status();
+        info!(?audio_status);
+        assert!(matches!(
+            audio_status,
+            Ok(_) | Err(MmcAudioStatusError::NotSupported)
+        ));
+    }
+}
