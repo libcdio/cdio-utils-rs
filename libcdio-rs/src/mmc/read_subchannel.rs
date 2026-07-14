@@ -23,8 +23,13 @@ use thiserror::Error;
 use tracing::debug;
 use winnow::{
     Parser,
-    binary::{be_u16, length_take, u8},
+    binary::{
+        be_u16,
+        bits::{bits, bool},
+        length_take, u8,
+    },
     error::{ContextError, StrContext},
+    token::take,
 };
 
 use crate::{
@@ -42,6 +47,34 @@ impl Mmc {
         status.ok_or(MmcAudioStatusError::NotSupported)
     }
 
+    /// Get the Media Catalog Number (UPC/bar code), if found.
+    pub fn media_catalog_number(&self) -> Result<Option<String>, MmcSubchannelError> {
+        let data = self.read_subchannel(AddressFormat::Lba, Some(SubchannelParameter::Mcn))?;
+        let input = &mut data.as_slice();
+        parse_header(input)?;
+
+        let format_code =
+            u8::<_, ContextError>.verify(|code| *code == SubchannelParameter::Mcn.discriminant());
+        let mcval = bits(bool::<_, ContextError>);
+        let (_format_code, _, mcval, mcn, _zero, _aframe) = (
+            format_code,
+            take(3_usize), // reserved
+            mcval,
+            take(13_usize), // mcn
+            u8.verify(|zero| *zero == 0),
+            u8, // aframe
+        )
+            .context(StrContext::Label("media catalog number descriptor"))
+            .parse_next(input)?;
+
+        if !mcval {
+            return Ok(None);
+        }
+        let mcn =
+            String::from_utf8(mcn.to_vec()).expect("mcn should not contain non utf8 characters");
+
+        Ok(Some(mcn))
+    }
     /// Perform an MMC `READ SUB-CHANNEL`.
     fn read_subchannel(
         &self,
@@ -186,5 +219,12 @@ mod tests {
             audio_status,
             Ok(_) | Err(MmcAudioStatusError::NotSupported)
         ));
+    }
+
+    #[test_log::test(test)]
+    #[ignore = "requires a disc drive with mmc"]
+    fn media_catalog_number() {
+        let mcn = Mmc::new().unwrap().media_catalog_number().unwrap();
+        info!(?mcn);
     }
 }
