@@ -23,7 +23,7 @@ num_enum = { version = "0.7.6", features = ["complex-expressions"] }
 thiserror = "2.0.18"
 time = { optional = true, workspace = true }
 tracing.workspace = true
-winnow = { version = "1.0.3", features = ["binary", "parser"], default-features = false }
+winnow = { version = "1.0.3", features = ["binary", "parser", "std"], default-features = false }
 
 [dev-dependencies]
 test-log.workspace = true
