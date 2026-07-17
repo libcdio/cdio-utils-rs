@@ -24,9 +24,11 @@ use std::{
 
 pub use get_config::*;
 pub use get_event_status::*;
+pub use read_subchannel::*;
 
 mod get_config;
 mod get_event_status;
+mod read_subchannel;
 
 use displaydoc::Display;
 use libcdio_sys::{
